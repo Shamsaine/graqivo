@@ -1,1 +1,6 @@
-{"name":"@graqivo/shared-types","version":"0.1.0","private":true,"types":"index.ts"}
+{
+  "name": "@graqivo/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "types": "index.ts"
+}

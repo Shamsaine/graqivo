@@ -5,7 +5,65 @@ datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
 }
-// Phase 1 only. Auth-owned models will be generated from Better Auth in Phase 2.
+model User {
+  id String @id
+  name String
+  email String @unique
+  emailVerified Boolean @default(false)
+  image String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions Session[]
+  accounts Account[]
+  memberships OrganizationMembership[]
+  acceptedInvitations Invitation[] @relation("InvitationRecipient")
+  auditEvents AuditEvent[]
+}
+model Session {
+  id String @id
+  expiresAt DateTime
+  token String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+model Account {
+  id String @id
+  accountId String
+  providerId String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken String?
+  refreshToken String?
+  idToken String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope String?
+  password String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId])
+  @@unique([providerId, accountId])
+}
+model Verification {
+  id String @id
+  identifier String
+  value String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([identifier])
+}
+model RateLimit {
+  id String @id
+  key String @unique
+  count Int
+  lastRequest BigInt
+}
 model Organization {
   id String @id @default(cuid())
   name String
@@ -16,8 +74,255 @@ model Organization {
   status String @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  displayName String?
+  logoUrl String?
+  projects Project[]
+  resources Resource[]
+  memberships OrganizationMembership[]
+  invitations Invitation[]
+  auditEvents AuditEvent[]
+}
+model OrganizationMembership {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role OrganizationRole @default(MEMBER)
+  status MembershipStatus @default(ACTIVE)
+  joinedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invitations Invitation[] @relation("InvitationSender")
+  ledProjects Project[] @relation("ProjectLead")
+  createdProjects Project[] @relation("ProjectCreator")
+  projectMemberships ProjectMembership[]
+  projectEvents ProjectEvent[]
+  ownedResources Resource[] @relation("ResourceOwner")
+  createdResources Resource[] @relation("ResourceCreator")
+  resourceAccess ResourceAccess[] @relation("ResourceRecipient")
+  resourceGrants ResourceAccess[] @relation("ResourceGrantor")
+  resourceEvents ResourceEvent[]
+  @@unique([organizationId, userId])
+  @@unique([organizationId, id])
+  @@index([userId, status])
+}
+model Invitation {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invitedById String
+  invitedBy OrganizationMembership @relation("InvitationSender", fields: [organizationId, invitedById], references: [organizationId, id], onDelete: Restrict)
+  email String
+  role OrganizationRole
+  tokenHash String @unique
+  expiresAt DateTime
+  status InvitationStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  acceptedAt DateTime?
+  acceptedById String?
+  acceptedBy User? @relation("InvitationRecipient", fields: [acceptedById], references: [id], onDelete: Restrict)
+  @@index([organizationId, status])
+}
+model AuditEvent {
+  id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action String
+  targetId String?
+  metadata Json @default("{}")
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
+}
+model EmailOutbox {
+  id String @id @default(cuid())
+  payload String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  claimedAt DateTime?
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  @@index([status, availableAt])
 }
 enum WorkspaceType {
   ORGANIZATION
   PERSONAL
+}
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+enum MembershipStatus {
+  ACTIVE
+  REVOKED
+}
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+model Project {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name String
+  description String?
+  status ProjectStatus @default(PLANNING)
+  leadMembershipId String?
+  lead OrganizationMembership? @relation("ProjectLead", fields: [organizationId, leadMembershipId], references: [organizationId, id], onDelete: Restrict)
+  createdById String
+  createdBy OrganizationMembership @relation("ProjectCreator", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict)
+  startDate DateTime? @db.Date
+  targetDate DateTime? @db.Date
+  archivedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  memberships ProjectMembership[]
+  events ProjectEvent[]
+  resources Resource[]
+  @@unique([organizationId, id])
+  @@index([organizationId, status, updatedAt])
+}
+model ProjectMembership {
+  id String @id @default(cuid())
+  organizationId String
+  projectId String
+  project Project @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict)
+  membershipId String
+  membership OrganizationMembership @relation(fields: [organizationId, membershipId], references: [organizationId, id], onDelete: Restrict)
+  role ProjectRole @default(CONTRIBUTOR)
+  createdAt DateTime @default(now())
+  @@unique([projectId, membershipId])
+  @@index([organizationId, membershipId])
+}
+model ProjectEvent {
+  id String @id @default(cuid())
+  organizationId String
+  projectId String
+  project Project @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict)
+  actorMembershipId String
+  actor OrganizationMembership @relation(fields: [organizationId, actorMembershipId], references: [organizationId, id], onDelete: Restrict)
+  action String
+  createdAt DateTime @default(now())
+  @@index([organizationId, projectId, createdAt])
+}
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+enum ProjectRole {
+  CONTRIBUTOR
+  VIEWER
+}
+
+model Resource {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  projectId String?
+  project Project? @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict)
+  title String
+  description String?
+  type ResourceType
+  source ResourceSource
+  externalUrl String?
+  objectKey String? @unique
+  fileName String?
+  mimeType String?
+  fileSize Int?
+  uploadState UploadState @default(NONE)
+  ownerMembershipId String
+  owner OrganizationMembership @relation("ResourceOwner", fields: [organizationId, ownerMembershipId], references: [organizationId, id], onDelete: Restrict)
+  createdById String
+  createdBy OrganizationMembership @relation("ResourceCreator", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict)
+  status ResourceStatus @default(ACTIVE)
+  reviewState ReviewState @default(NO_REVIEW)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  archivedAt DateTime?
+  access ResourceAccess[]
+  events ResourceEvent[]
+  @@unique([organizationId, id])
+  @@index([organizationId, status, updatedAt, id])
+  @@index([organizationId, projectId])
+}
+model ResourceAccess {
+  id String @id @default(cuid())
+  organizationId String
+  resourceId String
+  resource Resource @relation(fields: [organizationId, resourceId], references: [organizationId, id], onDelete: Restrict)
+  membershipId String
+  membership OrganizationMembership @relation("ResourceRecipient", fields: [organizationId, membershipId], references: [organizationId, id], onDelete: Restrict)
+  permission ResourcePermission
+  grantedById String
+  grantedBy OrganizationMembership @relation("ResourceGrantor", fields: [organizationId, grantedById], references: [organizationId, id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@unique([resourceId, membershipId, permission])
+  @@index([organizationId, membershipId])
+}
+model ResourceEvent {
+  id String @id @default(cuid())
+  organizationId String
+  resourceId String
+  resource Resource @relation(fields: [organizationId, resourceId], references: [organizationId, id], onDelete: Restrict)
+  actorMembershipId String
+  actor OrganizationMembership @relation(fields: [organizationId, actorMembershipId], references: [organizationId, id], onDelete: Restrict)
+  action String
+  createdAt DateTime @default(now())
+  @@index([organizationId, resourceId, createdAt])
+}
+model StorageDeletion {
+  id String @id @default(cuid())
+  key String @unique
+  status String @default("PENDING")
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  claimedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([status, availableAt])
+}
+enum ResourceType {
+  DOCUMENT
+  SHEET
+  PRESENTATION
+  PDF
+  LINK
+  OTHER
+}
+enum ResourceSource {
+  EXTERNAL
+  UPLOAD
+}
+enum ResourceStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+enum ReviewState {
+  NO_REVIEW
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+}
+enum UploadState {
+  NONE
+  PENDING
+  UPLOADING
+  READY
+  FAILED
+  DELETING
+  DELETED
+}
+enum ResourcePermission {
+  VIEW
+  EDIT
+  REVIEW
 }
