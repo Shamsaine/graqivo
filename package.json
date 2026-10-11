@@ -1,31 +1,33 @@
 {
-    "name":  "graqivo",
-    "private":  true,
-    "workspaces":  [
-                       "apps/*",
-                       "packages/*"
-                   ],
-    "engines":  {
-                    "node":  "\u003e=22.12"
-                },
-    "scripts":  {
-                    "dev":  "concurrently -n web,api -c cyan,magenta \"npm run dev -w @graqivo/web\" \"npm run dev -w @graqivo/api\"",
-                    "build":  "npm run build --workspaces --if-present",
-                    "typecheck":  "npm run typecheck --workspaces --if-present",
-                    "lint":  "eslint .",
-                    "format":  "prettier --write .",
-                    "format:check":  "prettier --check .",
-                    "test":  "npm run test -w @graqivo/api",
-                    "db:generate":  "npm run db:generate -w @graqivo/api",
-                    "db:migrate":  "npm run db:migrate -w @graqivo/api",
-                    "infra:up":  "docker compose up -d",
-                    "infra:down":  "docker compose down"
-                },
-    "devDependencies":  {
-                            "concurrently":  "^9.2.1",
-                            "typescript":  "^5.9.3",
-                            "eslint":  "^9.39.1",
-                            "typescript-eslint":  "8.60.1",
-                            "prettier":  "^3.0.0"
-                        }
+  "name": "graqivo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "\u003e=22.12"
+  },
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev -w @graqivo/web\" \"npm run dev -w @graqivo/api\"",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test -w @graqivo/api",
+    "db:generate": "npm run db:generate -w @graqivo/api",
+    "db:migrate": "npm run db:migrate -w @graqivo/api",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "test:phase2": "npm run test:phase2 -w @graqivo/api",
+    "test:database": "npm run test:database -w @graqivo/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.1",
+    "typescript-eslint": "8.60.1",
+    "prettier": "^3.0.0"
+  }
 }

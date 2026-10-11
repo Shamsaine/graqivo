@@ -1,1 +1,11 @@
-{"extends":"../../tsconfig.base.json","compilerOptions":{"module":"commonjs","moduleResolution":"node","outDir":"dist","experimentalDecorators":true,"emitDecoratorMetadata":true},"include":["src/**/*.ts"]}
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*.ts"]
+}
