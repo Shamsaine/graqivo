@@ -25,6 +25,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Ensure Rollup native binary is available
+        run: |
+          node -e "require('rollup')" || npm install --no-save rollup@$(node -p "require('./node_modules/rollup/package.json').version")
       - run: npm run db:generate
       - run: npm run db:migrate
       - run: npm run test:database -w @graqivo/api
