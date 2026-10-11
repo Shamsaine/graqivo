@@ -44,3 +44,5 @@ Run `npm run test:database -w @graqivo/api` after applying migrations for a real
 See [architecture](docs/architecture/PLAN.md), [credentials](docs/deployment/CREDENTIALS_SETUP.md), and [checkpoint record](docs/PROGRESS.md). Hosted deployment is deferred until the security and acceptance checkpoints pass.
 
 The default PostgreSQL host port is 55439 (configurable with POSTGRES_PORT). MinIO API/console use 9010/9011 to avoid common local conflicts.
+
+copyrighted
