@@ -944,3 +944,35 @@ dd {
     flex-wrap: wrap;
   }
 }
+
+.review-history {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.review-history > li,
+.review-request {
+  border: 1px solid var(--border, #dce3ef);
+  border-radius: 12px;
+  padding: 1rem;
+}
+.review-history ol {
+  padding-left: 1.4rem;
+  margin-top: 1rem;
+}
+.review-history ol li {
+  margin-bottom: 1rem;
+}
+.review-comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.review-request {
+  background: var(--workspace-tint, #eef2ff);
+  margin-bottom: 1rem;
+}
+.review-history time {
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}

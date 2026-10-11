@@ -1,3 +1,4 @@
+import { recordAudit } from '../activities/activity-write.js';
 import {
   BadRequestException,
   ConflictException,
@@ -43,7 +44,7 @@ export class WorkspacesService {
         await db.organizationMembership.create({
           data: { organizationId: organization.id, userId, role: 'OWNER' },
         });
-        await db.auditEvent.create({
+        await recordAudit(db, {
           data: {
             organizationId: organization.id,
             actorId: userId,
@@ -146,7 +147,7 @@ export class WorkspacesService {
           expiresAt: new Date(Date.now() + 72 * 3600000),
         },
       });
-      await db.auditEvent.create({
+      await recordAudit(db, {
         data: {
           organizationId: organization.id,
           actorId: userId,
@@ -235,7 +236,7 @@ export class WorkspacesService {
           acceptedById: user.id,
         },
       });
-      await db.auditEvent.create({
+      await recordAudit(db, {
         data: {
           organizationId: current.organizationId,
           actorId: user.id,
@@ -266,7 +267,7 @@ export class WorkspacesService {
       });
       if (!changed.count)
         throw new NotFoundException('Pending invitation unavailable');
-      await db.auditEvent.create({
+      await recordAudit(db, {
         data: {
           organizationId: organization.id,
           actorId: userId,
@@ -337,7 +338,7 @@ export class WorkspacesService {
         where: { id: target.id },
         data: role ? { role } : { status: 'REVOKED' },
       });
-      await db.auditEvent.create({
+      await recordAudit(db, {
         data: {
           organizationId: organization.id,
           actorId,

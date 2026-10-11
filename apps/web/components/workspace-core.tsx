@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type FormEvent, type CSSProperties } from 'react';
+import { ActivityFeed, ReviewList } from './reviews-activity';
 import { ResourceRegistry } from './resource-registry';
 import { Brand } from './brand';
 import { api, ApiError, type Membership } from '../lib/api';
@@ -14,8 +15,9 @@ type Event = {
   id: string;
   action: string;
   createdAt: string;
-  project?: { id: string; name: string };
-  actor?: { user: { name: string } };
+  project?: { id: string; name: string } | null;
+  actor?: { user: { name: string } } | null;
+  resource?: { id: string; title: string } | null;
 };
 type Project = {
   id: string;
@@ -60,6 +62,12 @@ type Overview = {
   activeProjectCount: number;
   projects: Project[];
   events: Event[];
+  pendingReviews: number;
+  needsAttention: {
+    id: string;
+    createdAt: string;
+    resource: { id: string; title: string };
+  }[];
   resources: number;
   recentResources: {
     id: string;
@@ -93,7 +101,14 @@ export function WorkspaceCore({
   projectId,
 }: {
   slug: string;
-  view: 'overview' | 'projects' | 'project' | 'people' | 'settings';
+  view:
+    | 'overview'
+    | 'projects'
+    | 'project'
+    | 'people'
+    | 'settings'
+    | 'activity'
+    | 'reviews';
   projectId?: string;
 }) {
   const [access, setAccess] = useState<{
@@ -109,6 +124,7 @@ export function WorkspaceCore({
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState('overview');
+  const [showProjectForm, setShowProjectForm] = useState(false);
   const base = '/workspaces/' + encodeURIComponent(slug);
   const href = '/app/' + encodeURIComponent(slug);
   async function load() {
@@ -134,6 +150,7 @@ export function WorkspaceCore({
   }
   useEffect(() => {
     setReady(false);
+    setShowProjectForm(false);
     setAccess(undefined);
     setProject(undefined);
     setError('');
@@ -184,6 +201,7 @@ export function WorkspaceCore({
       body,
       () => {
         if (!projectId) form.reset();
+        setShowProjectForm(false);
       },
     );
   }
@@ -209,6 +227,7 @@ export function WorkspaceCore({
           Project name
           <input
             name="name"
+            autoFocus
             required
             minLength={2}
             maxLength={150}
@@ -332,6 +351,15 @@ export function WorkspaceCore({
               <strong>{label(event.action.replace(/^PROJECT_/, ''))}</strong>
               <p>
                 {event.actor?.user.name ?? ''}
+                {event.resource && (
+                  <>
+                    {' '}
+                    ·{' '}
+                    <a href={href + '/registry/' + event.resource.id}>
+                      {event.resource.title}
+                    </a>
+                  </>
+                )}
                 {event.project && (
                   <>
                     {' '}
@@ -408,21 +436,28 @@ export function WorkspaceCore({
             </div>
           </div>
           <nav className="workspace-tabs" aria-label="Workspace">
-            {(['overview', 'projects', 'registry', 'people'] as const).map(
-              (page) => (
-                <a
-                  key={page}
-                  aria-current={
-                    view === page || (view === 'project' && page === 'projects')
-                      ? 'page'
-                      : undefined
-                  }
-                  href={href + '/' + page}
-                >
-                  {label(page)}
-                </a>
-              ),
-            )}
+            {(
+              [
+                'overview',
+                'projects',
+                'registry',
+                'people',
+                'reviews',
+                'activity',
+              ] as const
+            ).map((page) => (
+              <a
+                key={page}
+                aria-current={
+                  view === page || (view === 'project' && page === 'projects')
+                    ? 'page'
+                    : undefined
+                }
+                href={href + '/' + page}
+              >
+                {label(page)}
+              </a>
+            ))}
             {manager && <a href={href + '/admin'}>Administration</a>}
             {access.role === 'OWNER' && (
               <a
@@ -474,8 +509,8 @@ export function WorkspaceCore({
             </section>
             <section>
               <span>Pending reviews</span>
-              <strong>—</strong>
-              <small>Available in Phase 5</small>
+              <strong>{overview.pendingReviews}</strong>
+              <small>Accessible active resources</small>
             </section>
           </div>
           <section className="core-panel">
@@ -492,9 +527,21 @@ export function WorkspaceCore({
             </section>
             <section className="core-panel">
               <h2>Needs attention</h2>
-              <p className="muted">
-                Review requests will appear when reviews are available.
-              </p>
+              {overview.needsAttention.length ? (
+                <ul>
+                  {overview.needsAttention.map((item) => (
+                    <li key={item.id}>
+                      <a href={href + '/registry/' + item.resource.id}>
+                        {item.resource.title}
+                      </a>{' '}
+                      · awaiting your review
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">No reviews need your attention.</p>
+              )}
+              <a href={href + '/reviews'}>All review requests →</a>
               <h2>Recent resources</h2>
               {overview.recentResources.length ? (
                 <ul>
@@ -519,15 +566,28 @@ export function WorkspaceCore({
               <h2>Projects</h2>
               <p>Plan, connect people, and keep a clear record of work.</p>
             </div>
-            <span>{projects.length} accessible</span>
+            <div className="form-grid">
+              <span>{projects.length} accessible</span>
+              {manager && (
+                <button
+                  className="button"
+                  disabled={busy}
+                  aria-expanded={showProjectForm}
+                  aria-controls="create-project-form"
+                  onClick={() => setShowProjectForm((open) => !open)}
+                >
+                  {showProjectForm ? 'Cancel' : 'Create project'}
+                </button>
+              )}
+            </div>
           </div>
-          {cards(projects)}
-          {manager && (
-            <section className="core-panel">
+          {manager && showProjectForm && (
+            <section className="core-panel" id="create-project-form">
               <h2>Create a project</h2>
               {projectForm()}
             </section>
           )}
+          {cards(projects)}
         </>
       )}
       {ready && view === 'project' && project && (
@@ -597,8 +657,21 @@ export function WorkspaceCore({
               </dl>
               {manager && (
                 <>
-                  <h3>Edit project</h3>
-                  {projectForm(project)}
+                  <button
+                    className="button"
+                    disabled={busy}
+                    aria-expanded={showProjectForm}
+                    aria-controls="edit-project-form"
+                    onClick={() => setShowProjectForm((open) => !open)}
+                  >
+                    {showProjectForm ? 'Cancel' : 'Edit project'}
+                  </button>
+                  {showProjectForm && (
+                    <div id="edit-project-form">
+                      <h3>Edit project</h3>
+                      {projectForm(project)}
+                    </div>
+                  )}
                 </>
               )}
               {!manager && activity((project.events ?? []).slice(0, 5))}
@@ -708,22 +781,18 @@ export function WorkspaceCore({
             </section>
           )}
           {tab === 'activity' && (
-            <section className="core-panel">
-              <h3>Project activity</h3>
-              {activity(project.events ?? [])}
-            </section>
+            <ActivityFeed slug={slug} projectId={project.id} />
           )}
           {tab === 'resources' && (
             <ResourceRegistry slug={slug} projectId={project.id} embedded />
           )}
           {tab === 'reviews' && (
-            <section className="core-panel">
-              <h3>{label(tab)}</h3>
-              <p>Reviews arrive in Phase 5.</p>
-            </section>
+            <ReviewList slug={slug} projectId={project.id} />
           )}
         </>
       )}
+      {ready && view === 'activity' && <ActivityFeed slug={slug} />}
+      {ready && view === 'reviews' && <ReviewList slug={slug} />}
       {ready && view === 'people' && (
         <>
           <div className="section-heading">
@@ -784,7 +853,7 @@ export function WorkspaceCore({
                 ) : (
                   <p className="muted">No shared projects.</p>
                 )}
-                <h4>Recent project activity</h4>
+                <h4>Recent authorized activity</h4>
                 {activity(person.projectEvents)}
               </article>
             ))}

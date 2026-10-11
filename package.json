@@ -25,7 +25,8 @@
     "test:phase3": "npm run test:phase3 -w @graqivo/api",
     "test:phase4": "npm run test:phase4 -w @graqivo/api",
     "storage:init": "npm run storage:init -w @graqivo/api",
-    "storage:local-config": "npm run storage:local-config -w @graqivo/api"
+    "storage:local-config": "npm run storage:local-config -w @graqivo/api",
+    "test:phase5": "npm run test:phase5 -w @graqivo/api"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

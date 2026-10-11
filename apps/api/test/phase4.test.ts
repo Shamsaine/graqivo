@@ -271,6 +271,9 @@ describe.sequential('Phase 4 live registry and private storage', () => {
     for (const job of jobs) keys.add(job.key);
     for (const key of keys) await storage.remove(key);
     await db.storageDeletion.deleteMany({ where: { key: { in: [...keys] } } });
+    await db.activity.deleteMany({ where });
+    await db.review.deleteMany({ where });
+    await db.reviewRequest.deleteMany({ where });
     await db.resourceAccess.deleteMany({ where });
     await db.resourceEvent.deleteMany({ where });
     await db.resource.deleteMany({ where });
