@@ -4,25 +4,24 @@ export default function Welcome() {
     <main className="status-page">
       <Brand />
       <span className="eyebrow">DEVELOPMENT CHECKPOINT</span>
-      <h1>Your resources, connected.</h1>
+      <h1>Your work, reviewed.</h1>
       <p>
-        Phase 4 adds the resource registry, external links, private uploads,
-        resource access grants, and authorized downloads.
+        Phase 5 adds review requests, comments, approvals, change requests,
+        review history and authorized activity feeds.
       </p>
       <ol>
         <li>Foundation</li>
         <li>Authentication and tenant isolation</li>
         <li>Workspace, projects, and people</li>
+        <li>Resource registry and private uploads</li>
         <li>
-          <strong>Resource registry and private uploads</strong> — current
-          checkpoint
+          <strong>Reviews and activity</strong> — current checkpoint
         </li>
-        <li>Reviews and activity</li>
         <li>Design refinement</li>
         <li>Hosted pilot deployment</li>
         <li>Acceptance and security testing</li>
       </ol>
-      <p>Reviews and approvals arrive in Phase 5.</p>
+      <p>Final design refinement is next in Phase 6.</p>
       <a className="button" href="/workspaces">
         Open your workspace
       </a>

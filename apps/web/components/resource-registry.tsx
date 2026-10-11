@@ -7,6 +7,7 @@ import {
   type Member,
   type Workspace,
 } from '../lib/api';
+import { ResourceReviews, ActivityFeed } from './reviews-activity';
 import { Brand } from './brand';
 type Resource = {
   id: string;
@@ -31,7 +32,12 @@ type Resource = {
     permission: string;
     membership: { id: string; user: { name: string; email: string } };
   }[];
-  permissions: { edit: boolean; manageAccess: boolean; delete: boolean };
+  permissions: {
+    edit: boolean;
+    review: boolean;
+    manageAccess: boolean;
+    delete: boolean;
+  };
   events?: {
     id: string;
     action: string;
@@ -89,6 +95,7 @@ export function ResourceRegistry({
   }, [search]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const base = '/workspaces/' + encodeURIComponent(slug);
@@ -209,6 +216,7 @@ export function ResourceRegistry({
       await load();
       form.reset();
       setMessage('Resource added.');
+      setShowCreateForm(false);
     } catch (failure) {
       setError(
         (failure instanceof Error ? failure.message : 'Please try again') +
@@ -287,8 +295,112 @@ export function ResourceRegistry({
               <h2>{projectId ? 'Project resources' : 'Resource registry'}</h2>
               <p>One organized view of the resources you can access.</p>
             </div>
-            <span>{data?.total ?? '—'} accessible</span>
+            <div className="form-grid">
+              <span>{data?.total ?? '—'} accessible</span>
+              {(!projectId || writableProjects.includes(projectId)) && (
+                <button
+                  className="button"
+                  disabled={busy || loading}
+                  aria-expanded={showCreateForm}
+                  aria-controls="add-resource-form"
+                  onClick={() => setShowCreateForm((open) => !open)}
+                >
+                  {showCreateForm ? 'Cancel' : 'Add resource'}
+                </button>
+              )}
+            </div>
           </div>
+          {showCreateForm &&
+            (!projectId || writableProjects.includes(projectId)) && (
+              <section className="core-panel" id="add-resource-form">
+                <h3>Add a resource</h3>
+                <form onSubmit={create} className="core-form">
+                  <label>
+                    Title
+                    <input
+                      name="title"
+                      autoFocus
+                      required
+                      minLength={2}
+                      maxLength={180}
+                    />
+                  </label>
+                  <label>
+                    Description
+                    <textarea name="description" maxLength={4000} rows={3} />
+                  </label>
+                  <div className="form-grid">
+                    <label>
+                      Source
+                      <select
+                        value={source}
+                        onChange={(event) => setSource(event.target.value)}
+                      >
+                        <option value="EXTERNAL">External link</option>
+                        <option value="UPLOAD">Private upload</option>
+                      </select>
+                    </label>
+                    <label>
+                      Type
+                      <select name="type" defaultValue="LINK">
+                        {categories.map((type) => (
+                          <option key={type} value={type}>
+                            {label(type)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {!projectId && (
+                      <label>
+                        Project
+                        <select name="projectId">
+                          <option value="">Unassigned</option>
+                          {projects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                  {source === 'EXTERNAL' ? (
+                    <label>
+                      External URL
+                      <input
+                        name="externalUrl"
+                        type="url"
+                        required
+                        maxLength={2048}
+                        placeholder="https://"
+                      />
+                      <small>
+                        Graqivo stores this link. The original provider controls
+                        who can open it.
+                      </small>
+                    </label>
+                  ) : (
+                    <label>
+                      File
+                      <input
+                        name="file"
+                        type="file"
+                        required
+                        accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.png,.jpg,.jpeg"
+                      />
+                      <small>
+                        Up to 25 MB. PDF, modern Office files, text, CSV, PNG,
+                        and JPEG. The file type is determined from validated
+                        content.
+                      </small>
+                    </label>
+                  )}
+                  <button className="button" disabled={busy}>
+                    {busy ? 'Adding…' : 'Add resource'}
+                  </button>
+                </form>
+              </section>
+            )}
           <form
             className="registry-filters"
             onSubmit={(event) => event.preventDefault()}
@@ -480,89 +592,6 @@ export function ResourceRegistry({
               </nav>
             </>
           )}
-          {(!projectId || writableProjects.includes(projectId)) && (
-            <section className="core-panel">
-              <h3>Add a resource</h3>
-              <form onSubmit={create} className="core-form">
-                <label>
-                  Title
-                  <input name="title" required minLength={2} maxLength={180} />
-                </label>
-                <label>
-                  Description
-                  <textarea name="description" maxLength={4000} rows={3} />
-                </label>
-                <div className="form-grid">
-                  <label>
-                    Source
-                    <select
-                      value={source}
-                      onChange={(event) => setSource(event.target.value)}
-                    >
-                      <option value="EXTERNAL">External link</option>
-                      <option value="UPLOAD">Private upload</option>
-                    </select>
-                  </label>
-                  <label>
-                    Type
-                    <select name="type" defaultValue="LINK">
-                      {categories.map((type) => (
-                        <option key={type} value={type}>
-                          {label(type)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {!projectId && (
-                    <label>
-                      Project
-                      <select name="projectId">
-                        <option value="">Unassigned</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                </div>
-                {source === 'EXTERNAL' ? (
-                  <label>
-                    External URL
-                    <input
-                      name="externalUrl"
-                      type="url"
-                      required
-                      maxLength={2048}
-                      placeholder="https://"
-                    />
-                    <small>
-                      Graqivo stores this link. The original provider controls
-                      who can open it.
-                    </small>
-                  </label>
-                ) : (
-                  <label>
-                    File
-                    <input
-                      name="file"
-                      type="file"
-                      required
-                      accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.png,.jpg,.jpeg"
-                    />
-                    <small>
-                      Up to 25 MB. PDF, modern Office files, text, CSV, PNG, and
-                      JPEG. The file type is determined from validated content.
-                    </small>
-                  </label>
-                )}
-                <button className="button" disabled={busy}>
-                  {busy ? 'Adding…' : 'Add resource'}
-                </button>
-              </form>
-            </section>
-          )}
         </>
       )}
       {!loading && resourceId && resource && (
@@ -682,6 +711,10 @@ export function ResourceRegistry({
           {resource.permissions.edit && (
             <section className="core-panel">
               <h3>Edit metadata</h3>
+              <p>
+                Changing content or assignment cancels any pending review and
+                clears its current decision. Review history is retained.
+              </p>
               <form
                 key={resource.updatedAt}
                 onSubmit={edit}
@@ -847,31 +880,16 @@ export function ResourceRegistry({
               </form>
             )}
             <small>
-              Review permission is recorded now; review actions arrive in Phase
-              5.
+              Review access allows comments and responses to assigned review
+              requests.
             </small>
           </section>
-          <section className="core-panel">
-            <h3>Resource activity</h3>
-            {resource.events?.length ? (
-              <ol className="activity-list">
-                {resource.events.map((event) => (
-                  <li key={event.id}>
-                    <span className="activity-dot" />
-                    <div>
-                      <strong>
-                        {label(event.action.replace('RESOURCE_', ''))}
-                      </strong>
-                      <p>{event.actor.user.name}</p>
-                      <time>{new Date(event.createdAt).toLocaleString()}</time>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p>No activity yet.</p>
-            )}
-          </section>
+          <ResourceReviews slug={slug} resource={resource} onChange={load} />
+          <ActivityFeed
+            key={resource.updatedAt}
+            slug={slug}
+            resourceId={resource.id}
+          />
           {resource.permissions.delete && (
             <section className="core-panel">
               <h3>Delete resource</h3>
@@ -951,6 +969,8 @@ export function ResourceRegistry({
               Registry
             </a>
             <a href={href + '/people'}>People</a>
+            <a href={href + '/reviews'}>Reviews</a>
+            <a href={href + '/activity'}>Activity</a>
             {access.role !== 'MEMBER' && (
               <a href={href + '/admin'}>Administration</a>
             )}

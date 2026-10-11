@@ -17,7 +17,8 @@
     "test:phase3": "vitest run test/phase3.test.ts --testTimeout=30000 --hookTimeout=60000",
     "storage:init": "tsx src/storage/provision.ts",
     "test:phase4": "vitest run test/phase4.test.ts --testTimeout=30000 --hookTimeout=60000",
-    "storage:local-config": "tsx src/storage/local-config.ts"
+    "storage:local-config": "tsx src/storage/local-config.ts",
+    "test:phase5": "vitest run test/phase5.test.ts --testTimeout=30000 --hookTimeout=60000"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",

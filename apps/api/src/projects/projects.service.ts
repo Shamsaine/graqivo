@@ -1,3 +1,5 @@
+import { ActivitiesService } from '../activities/activities.service.js';
+import { recordAudit } from '../activities/activity-write.js';
 import {
   BadRequestException,
   ForbiddenException,
@@ -32,6 +34,7 @@ const projectInclude = {
 export class ProjectsService {
   constructor(
     @Inject(PrismaService) private readonly db: PrismaService,
+    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
     @Inject(PermissionsService)
     private readonly permissions: PermissionsService,
   ) {}
@@ -70,41 +73,25 @@ export class ProjectsService {
       include: projectInclude,
     });
     if (!project) throw new NotFoundException('Project unavailable');
-    const events = await this.db.projectEvent.findMany({
-      where: { organizationId: organization.id, projectId: id },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        action: true,
-        createdAt: true,
-        actor: { select: { user: { select: { name: true } } } },
-      },
-    });
+    const events = (
+      await this.activities.list(slug, userId, {
+        projectId: id,
+        page: 1,
+        limit: 50,
+      })
+    ).items;
     return { ...project, events };
   }
   async overview(slug: string, userId: string) {
     const { organization, member } = await this.access(slug, userId);
     const scope = this.scope(organization.id, member);
-    const [activeCount, projects, events] = await Promise.all([
+    const [activeCount, projects] = await Promise.all([
       this.db.project.count({ where: { ...scope, status: 'ACTIVE' } }),
       this.db.project.findMany({
         where: { ...scope, status: { notIn: ['ARCHIVED', 'COMPLETED'] } },
         include: projectInclude,
         orderBy: { updatedAt: 'desc' },
         take: 8,
-      }),
-      this.db.projectEvent.findMany({
-        where: { organizationId: organization.id, project: scope },
-        select: {
-          id: true,
-          action: true,
-          createdAt: true,
-          project: { select: { id: true, name: true } },
-          actor: { select: { user: { select: { name: true } } } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
       }),
     ]);
     const resourceScope = {
@@ -123,15 +110,58 @@ export class ProjectsService {
     return {
       activeProjectCount: activeCount,
       projects,
-      events,
+      events: (await this.activities.list(slug, userId, { page: 1, limit: 20 }))
+        .items,
       resources: resourceCount,
       recentResources,
-      pendingReviews: null,
+      pendingReviews: await this.db.reviewRequest.count({
+        where: {
+          organizationId: organization.id,
+          status: 'PENDING',
+          resource: resourceScope,
+        },
+      }),
+      needsAttention: await this.db.reviewRequest.findMany({
+        where: {
+          organizationId: organization.id,
+          status: 'PENDING',
+          reviewerMembershipId: member.id,
+          resource: {
+            AND: [
+              resourceScope,
+              member.role !== 'MEMBER'
+                ? {}
+                : {
+                    OR: [
+                      { ownerMembershipId: member.id },
+                      { createdById: member.id },
+                      {
+                        access: {
+                          some: {
+                            membershipId: member.id,
+                            permission: 'REVIEW',
+                            membership: { status: 'ACTIVE' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+            ],
+          },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          resource: { select: { id: true, title: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 8,
+      }),
     };
   }
   async people(slug: string, userId: string) {
     const { organization, member } = await this.access(slug, userId);
-    return this.db.organizationMembership.findMany({
+    const people = await this.db.organizationMembership.findMany({
       where: { organizationId: organization.id, status: 'ACTIVE' },
       select: {
         id: true,
@@ -167,6 +197,18 @@ export class ProjectsService {
       },
       orderBy: { user: { name: 'asc' } },
     });
+    return Promise.all(
+      people.map(async (person) => ({
+        ...person,
+        projectEvents: (
+          await this.activities.list(slug, userId, {
+            actorId: person.id,
+            page: 1,
+            limit: 3,
+          })
+        ).items,
+      })),
+    );
   }
   async settings(slug: string, userId: string, dto: SettingsDto) {
     return this.db.$transaction(async (db) => {
@@ -192,7 +234,7 @@ export class ProjectsService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         },
       });
-      await db.auditEvent.create({
+      await recordAudit(db, {
         data: {
           organizationId: organization.id,
           actorId: userId,
@@ -223,7 +265,7 @@ export class ProjectsService {
     await db.projectEvent.create({
       data: { organizationId, projectId, actorMembershipId: actor.id, action },
     });
-    await db.auditEvent.create({
+    await recordAudit(db, {
       data: {
         organizationId,
         actorId: actor.userId,

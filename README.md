@@ -4,7 +4,7 @@ Your work, connected. An independently owned Next.js / NestJS / PostgreSQL appli
 
 ## Current checkpoint
 
-Phase 4 adds the resource registry, external links, private file uploads, resource permissions, search and filters, and resource detail pages. Projects and the workspace overview show accessible resources. Review workflows, final visual refinement, and hosted deployment belong to later phases.
+Phase 5 adds assigned review requests, comments, approvals, change requests, permanent review history and authorized activity feeds. Resource/project pages, People and the dashboard show current scoped activity and review attention. Final visual refinement and hosted deployment belong to later phases.
 
 ## Local preview
 
@@ -40,9 +40,9 @@ For authentication integration tests, create the separate `graqivo_test` databas
 docker compose exec -T postgres createdb -U graqivo graqivo_test
 ```
 
-For its migration, temporarily set `DATABASE_URL` in the shell to the test database URL and run `npm run db:migrate`; then unset that shell override. Tests refuse any database name except graqivo_test and never fall back to the application's database. They require local Mailpit SMTP and its HTTP API on port 8025. Run `npm run test:phase2`, `npm run test:phase3`, `npm run test:phase4`, and `npm run test:email -w @graqivo/api` sequentially. Phase 4 tests also require the authenticated S3 service; they use a separate graqivo-test bucket.
+For its migration, temporarily set `DATABASE_URL` in the shell to the test database URL and run `npm run db:migrate`; then unset that shell override. Tests refuse any database name except graqivo_test and never fall back to the application's database. They require local Mailpit SMTP and its HTTP API on port 8025. Run `npm run test:phase2`, `npm run test:phase3`, `npm run test:phase4`, `npm run test:phase5`, and `npm run test:email -w @graqivo/api` sequentially. Phase 4 tests also require the authenticated S3 service; they use a separate graqivo-test bucket.
 
-Actual verification: all 61 tests passed (18 Phase 4, 13 Phase 3, 21 Phase 2, six foundation, one database, two email queue). API/frontend typechecks, lint and production builds passed. Browser visual/interaction QA could not run because no browser session is available.
+Actual verification: all 82 tests passed (21 Phase 5, 18 Phase 4, 13 Phase 3, 21 Phase 2, six foundation, one database, two email queue). API/frontend typechecks, lint and production builds passed. Browser visual/interaction QA could not run because no browser session is available.
 
 ## Security and deployment boundaries
 
@@ -52,6 +52,6 @@ Production requires HTTPS, secure cookies, and authenticated TLS SMTP. Hosted fr
 
 Local storage uses authenticated SeaweedFS through the S3 adapter because MinIO distributions were unavailable. MinIO and Cloudflare R2 adapters remain supported; hosted R2 has not been exercised. Files stay private, and downloads require current authorization before issuing attachment URLs (120 seconds by default). An already issued URL remains valid until expiration. Upload validation is not an antivirus scanner. See [Phase 4 record](docs/PHASE4.md) for behavior and limits.
 
-See [architecture](docs/architecture/PLAN.md), [credentials](docs/deployment/CREDENTIALS_SETUP.md), and [development record](docs/PROGRESS.md). Hosted deployment and the complete V1 pilot are not complete.
+See [Phase 5 review/activity record](docs/PHASE5.md), [architecture](docs/architecture/PLAN.md), [credentials](docs/deployment/CREDENTIALS_SETUP.md), and [development record](docs/PROGRESS.md). Hosted deployment and the complete V1 pilot are not complete.
 
 copyrighted

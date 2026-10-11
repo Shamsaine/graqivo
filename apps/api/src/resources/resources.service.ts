@@ -1,3 +1,4 @@
+import { recordAudit } from '../activities/activity-write.js';
 import {
   BadRequestException,
   ConflictException,
@@ -278,7 +279,7 @@ export class ResourcesService {
         action,
       },
     });
-    await db.auditEvent.create({
+    await recordAudit(db, {
       data: {
         organizationId: resource.organizationId,
         actorId: member.userId,
@@ -386,11 +387,31 @@ export class ResourcesService {
         throw new BadRequestException(
           'Uploaded file type is determined by its validated content',
         );
+      const changed =
+        (dto.title !== undefined && dto.title.trim() !== resource.title) ||
+        (dto.description !== undefined &&
+          dto.description !== (resource.description ?? '')) ||
+        (dto.externalUrl !== undefined &&
+          this.url(dto.externalUrl) !== resource.externalUrl) ||
+        (dto.type !== undefined && dto.type !== resource.type) ||
+        (dto.projectId !== undefined && dto.projectId !== resource.projectId) ||
+        (dto.ownerMembershipId !== undefined &&
+          dto.ownerMembershipId !== resource.ownerMembershipId) ||
+        (dto.status === 'ARCHIVED' && resource.status !== 'ARCHIVED');
+      if (changed) {
+        await db.reviewRequest.updateMany({
+          where: { resourceId: id, status: 'PENDING' },
+          data: { status: 'CANCELLED', completedAt: new Date() },
+        });
+        if (resource.reviewState !== 'NO_REVIEW')
+          await this.event(db, resource, member, 'REVIEW_INVALIDATED');
+      }
       const updated = await db.resource.update({
         where: { id },
         data: {
           ...dto,
           title: dto.title?.trim(),
+          ...(changed ? { reviewState: 'NO_REVIEW' as const } : {}),
           externalUrl:
             dto.externalUrl === undefined
               ? undefined
@@ -598,6 +619,10 @@ export class ResourcesService {
       await this.permissions.lockWorkspace(db, organization.id);
       const { resource, member } = await this.find(slug, id, userId, db);
       this.permissions.requireManager(member.role);
+      await db.reviewRequest.updateMany({
+        where: { resourceId: id, status: 'PENDING' },
+        data: { status: 'CANCELLED', completedAt: new Date() },
+      });
       if (resource.uploadState === 'UPLOADING')
         throw new ConflictException('Wait for the upload to finish');
       await db.resource.update({

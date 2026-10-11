@@ -78,9 +78,12 @@ model Organization {
   logoUrl String?
   projects Project[]
   resources Resource[]
+  activities Activity[]
   memberships OrganizationMembership[]
   invitations Invitation[]
   auditEvents AuditEvent[]
+  reviewRequests ReviewRequest[]
+  reviews Review[]
 }
 model OrganizationMembership {
   id String @id @default(cuid())
@@ -103,6 +106,10 @@ model OrganizationMembership {
   resourceAccess ResourceAccess[] @relation("ResourceRecipient")
   resourceGrants ResourceAccess[] @relation("ResourceGrantor")
   resourceEvents ResourceEvent[]
+  reviewRequests ReviewRequest[] @relation("ReviewRequester")
+  assignedReviews ReviewRequest[] @relation("AssignedReviewer")
+  reviews Review[]
+  activities Activity[]
   @@unique([organizationId, userId])
   @@unique([organizationId, id])
   @@index([userId, status])
@@ -185,6 +192,7 @@ model Project {
   memberships ProjectMembership[]
   events ProjectEvent[]
   resources Resource[]
+  activities Activity[]
   @@unique([organizationId, id])
   @@index([organizationId, status, updatedAt])
 }
@@ -250,6 +258,10 @@ model Resource {
   archivedAt DateTime?
   access ResourceAccess[]
   events ResourceEvent[]
+  reviewRound Int @default(0)
+  reviewRequests ReviewRequest[]
+  reviews Review[]
+  activities Activity[]
   @@unique([organizationId, id])
   @@index([organizationId, status, updatedAt, id])
   @@index([organizationId, projectId])
@@ -325,4 +337,74 @@ enum ResourcePermission {
   VIEW
   EDIT
   REVIEW
+}
+
+model ReviewRequest {
+ id String @id @default(cuid())
+ organizationId String
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+ resourceId String
+ resource Resource @relation(fields:[organizationId,resourceId],references:[organizationId,id],onDelete:Restrict)
+ requesterMembershipId String
+ requester OrganizationMembership @relation("ReviewRequester",fields:[organizationId,requesterMembershipId],references:[organizationId,id],onDelete:Restrict)
+ reviewerMembershipId String
+ reviewer OrganizationMembership @relation("AssignedReviewer",fields:[organizationId,reviewerMembershipId],references:[organizationId,id],onDelete:Restrict)
+ round Int
+ comment String?
+ status ReviewRequestStatus @default(PENDING)
+ createdAt DateTime @default(now())
+ completedAt DateTime?
+ reviews Review[]
+ @@unique([organizationId,id])
+ @@unique([resourceId,round])
+ @@unique([organizationId,resourceId,id])
+ @@index([organizationId,status,reviewerMembershipId,createdAt])
+}
+model Review {
+ id String @id @default(cuid())
+ organizationId String
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+ resourceId String
+ resource Resource @relation(fields:[organizationId,resourceId],references:[organizationId,id],onDelete:Restrict)
+ requestId String?
+ request ReviewRequest? @relation(fields:[organizationId,resourceId,requestId],references:[organizationId,resourceId,id],onDelete:Restrict)
+ authorMembershipId String
+ author OrganizationMembership @relation(fields:[organizationId,authorMembershipId],references:[organizationId,id],onDelete:Restrict)
+ type ReviewType
+ comment String?
+ createdAt DateTime @default(now())
+ @@index([organizationId,resourceId,createdAt])
+}
+model Activity {
+ id String @id @default(cuid())
+ organizationId String
+ organization Organization @relation(fields:[organizationId],references:[id],onDelete:Restrict)
+ actorMembershipId String?
+ actor OrganizationMembership? @relation(fields:[organizationId,actorMembershipId],references:[organizationId,id],onDelete:Restrict)
+ projectId String?
+ project Project? @relation(fields:[organizationId,projectId],references:[organizationId,id],onDelete:Restrict)
+ resourceId String?
+ resource Resource? @relation(fields:[organizationId,resourceId],references:[organizationId,id],onDelete:Restrict)
+ visibility ActivityVisibility
+ action String
+ createdAt DateTime @default(now())
+ @@index([organizationId,createdAt,id])
+ @@index([organizationId,projectId,createdAt])
+ @@index([organizationId,resourceId,createdAt])
+}
+enum ReviewRequestStatus {
+ PENDING
+ COMPLETED
+ CANCELLED
+}
+enum ReviewType {
+ COMMENT
+ APPROVAL
+ CHANGES_REQUESTED
+}
+enum ActivityVisibility {
+ WORKSPACE
+ ADMIN
+ PROJECT
+ RESOURCE
 }

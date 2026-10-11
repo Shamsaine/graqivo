@@ -1,3 +1,7 @@
+import { ReviewsService } from './reviews/reviews.service.js';
+import { ReviewsController } from './reviews/reviews.controller.js';
+import { ActivitiesService } from './activities/activities.service.js';
+import { ActivitiesController } from './activities/activities.controller.js';
 import { ProjectsService } from './projects/projects.service.js';
 import { ProjectsController } from './projects/projects.controller.js';
 import { ResourcesService } from './resources/resources.service.js';
@@ -27,6 +31,8 @@ import { WorkspacesController } from './organizations/workspaces.controller.js';
     WorkspacesController,
     ProjectsController,
     ResourcesController,
+    ReviewsController,
+    ActivitiesController,
   ],
   providers: [
     PrismaService,
@@ -37,6 +43,8 @@ import { WorkspacesController } from './organizations/workspaces.controller.js';
     WorkspacesService,
     ProjectsService,
     ResourcesService,
+    ReviewsService,
+    ActivitiesService,
     ResourceUploadGuard,
     StorageService,
     StorageCleanupService,
