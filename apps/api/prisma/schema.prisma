@@ -5,7 +5,65 @@ datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
 }
-// Phase 1 only. Auth-owned models will be generated from Better Auth in Phase 2.
+model User {
+  id String @id
+  name String
+  email String @unique
+  emailVerified Boolean @default(false)
+  image String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions Session[]
+  accounts Account[]
+  memberships OrganizationMembership[]
+  acceptedInvitations Invitation[] @relation("InvitationRecipient")
+  auditEvents AuditEvent[]
+}
+model Session {
+  id String @id
+  expiresAt DateTime
+  token String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+model Account {
+  id String @id
+  accountId String
+  providerId String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken String?
+  refreshToken String?
+  idToken String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope String?
+  password String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId])
+  @@unique([providerId, accountId])
+}
+model Verification {
+  id String @id
+  identifier String
+  value String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([identifier])
+}
+model RateLimit {
+  id String @id
+  key String @unique
+  count Int
+  lastRequest BigInt
+}
 model Organization {
   id String @id @default(cuid())
   name String
@@ -16,8 +74,81 @@ model Organization {
   status String @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  memberships OrganizationMembership[]
+  invitations Invitation[]
+  auditEvents AuditEvent[]
+}
+model OrganizationMembership {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role OrganizationRole @default(MEMBER)
+  status MembershipStatus @default(ACTIVE)
+  joinedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invitations Invitation[] @relation("InvitationSender")
+  @@unique([organizationId, userId])
+  @@unique([organizationId, id])
+  @@index([userId, status])
+}
+model Invitation {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invitedById String
+  invitedBy OrganizationMembership @relation("InvitationSender", fields: [organizationId, invitedById], references: [organizationId, id], onDelete: Restrict)
+  email String
+  role OrganizationRole
+  tokenHash String @unique
+  expiresAt DateTime
+  status InvitationStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  acceptedAt DateTime?
+  acceptedById String?
+  acceptedBy User? @relation("InvitationRecipient", fields: [acceptedById], references: [id], onDelete: Restrict)
+  @@index([organizationId, status])
+}
+model AuditEvent {
+  id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action String
+  targetId String?
+  metadata Json @default("{}")
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
+}
+model EmailOutbox {
+  id String @id @default(cuid())
+  payload String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  claimedAt DateTime?
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  @@index([status, availableAt])
 }
 enum WorkspaceType {
   ORGANIZATION
   PERSONAL
+}
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+enum MembershipStatus {
+  ACTIVE
+  REVOKED
+}
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
 }
