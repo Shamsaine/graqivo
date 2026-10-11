@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
+      POSTGRES_PASSWORD: ci_password
       DATABASE_URL: postgresql://graqivo:ci_password@localhost:5432/graqivo
       TEST_DATABASE_URL: postgresql://graqivo:ci_password@localhost:5432/graqivo_test
       FRONTEND_URL: http://localhost:3000
@@ -14,6 +15,12 @@ jobs:
       SMTP_PORT: 1025
       SMTP_SECURE: 'false'
       EMAIL_FROM_ADDRESS: no-reply@graqivo.local
+      STORAGE_PROVIDER: s3
+      S3_ENDPOINT: http://localhost:9010
+      S3_ACCESS_KEY_ID: graqivo_ci
+      S3_BUCKET_NAME: graqivo-local
+      MAX_UPLOAD_SIZE_MB: 25
+      STORAGE_SIGNED_URL_TTL_SECONDS: 120
     services:
       postgres:
         image: postgres:17-alpine
@@ -26,7 +33,7 @@ jobs:
           --health-cmd "pg_isready -U graqivo"
           --health-interval 5s --health-timeout 3s --health-retries 20
       mailpit:
-        image: axllent/mailpit:latest
+        image: axllent/mailpit:v1.27.8
         ports: ['1025:1025', '8025:8025']
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +42,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - name: Generate isolated test authentication secret
-        run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV, 'BETTER_AUTH_SECRET=' + require('crypto').randomBytes(48).toString('hex') + '\n')"
+      - name: Generate ephemeral authentication and storage secrets
+        run: node -e "const fs=require('fs'),crypto=require('crypto');fs.appendFileSync(process.env.GITHUB_ENV,'BETTER_AUTH_SECRET='+crypto.randomBytes(48).toString('hex')+'\nS3_SECRET_ACCESS_KEY='+crypto.randomBytes(32).toString('hex')+'\n')"
+      - run: npm run storage:local-config
+      - run: docker compose up -d storage
+      - name: Wait for authenticated storage service
+        run: |
+          for attempt in $(seq 1 30); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9010/ || true)
+            if [ "$status" = "403" ]; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - run: npm run storage:init
       - run: npm run db:generate
       - run: npm run db:migrate
       - name: Create isolated test database
@@ -47,6 +65,8 @@ jobs:
           DATABASE_URL: postgresql://graqivo:ci_password@localhost:5432/graqivo_test
       - run: npm run test:database
       - run: npm run test:phase2
+      - run: npm run test:phase3
+      - run: npm run test:phase4
       - run: npm run test:email -w @graqivo/api
       - run: npm run typecheck
       - run: npm run lint

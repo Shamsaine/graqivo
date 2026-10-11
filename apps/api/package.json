@@ -13,9 +13,15 @@
     "db:validate": "prisma validate",
     "test:database": "vitest run test/database.test.ts",
     "test:phase2": "vitest run test/phase2.test.ts --testTimeout=30000 --hookTimeout=60000",
-    "test:email": "vitest run test/email.test.ts"
+    "test:email": "vitest run test/email.test.ts",
+    "test:phase3": "vitest run test/phase3.test.ts --testTimeout=30000 --hookTimeout=60000",
+    "storage:init": "tsx src/storage/provision.ts",
+    "test:phase4": "vitest run test/phase4.test.ts --testTimeout=30000 --hookTimeout=60000",
+    "storage:local-config": "tsx src/storage/local-config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@aws-sdk/s3-request-presigner": "^3.1149.0",
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
     "@nestjs/platform-express": "^11.1.0",
@@ -29,6 +35,7 @@
     "nodemailer": "^10.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "yauzl": "^3.4.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
@@ -37,6 +44,7 @@
     "@types/node": "^22.19.0",
     "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.3",
+    "@types/yauzl": "^3.4.0",
     "prisma": "6.19.0",
     "supertest": "^7.1.0",
     "tsx": "^4.20.0",

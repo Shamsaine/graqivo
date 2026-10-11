@@ -1,9 +1,9 @@
-import { WorkspaceAccess } from '../../../../components/workspace-access';
-export default async function Overview({
+import { WorkspaceCore } from '../../../../components/workspace-core';
+export default async function Page({
   params,
 }: {
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  return <WorkspaceAccess slug={workspaceSlug} />;
+  return <WorkspaceCore slug={workspaceSlug} view="overview" />;
 }

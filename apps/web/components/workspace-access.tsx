@@ -116,7 +116,13 @@ export function WorkspaceAccess({
           </span>
           <h1>{workspace.organization.name}</h1>
           <nav className="workspace-tabs">
-            <a href={'/app/' + slug + '/overview'}>Workspace</a>
+            <a href={'/app/' + slug + '/overview'}>Overview</a>
+            <a href={'/app/' + slug + '/projects'}>Projects</a>
+            <a href={'/app/' + slug + '/people'}>People</a>
+            <a href={'/app/' + slug + '/registry'}>Registry</a>
+            {workspace.role === 'OWNER' && (
+              <a href={'/app/' + slug + '/settings'}>Settings</a>
+            )}
             {workspace.role !== 'MEMBER' && (
               <a href={'/app/' + slug + '/admin'}>Administration</a>
             )}

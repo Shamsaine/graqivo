@@ -318,6 +318,21 @@ export class WorkspacesService {
             'A workspace must retain at least one Owner',
           );
       }
+      if (!role) {
+        await db.resourceAccess.deleteMany({
+          where: { organizationId: organization.id, membershipId: target.id },
+        });
+        await db.project.updateMany({
+          where: {
+            organizationId: organization.id,
+            leadMembershipId: target.id,
+          },
+          data: { leadMembershipId: null },
+        });
+        await db.projectMembership.deleteMany({
+          where: { organizationId: organization.id, membershipId: target.id },
+        });
+      }
       await db.organizationMembership.update({
         where: { id: target.id },
         data: role ? { role } : { status: 'REVOKED' },

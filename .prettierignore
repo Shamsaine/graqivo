@@ -10,3 +10,4 @@ package-lock.json
 **/.env
 **/.env.local
 docs/PRODUCT_SPECIFICATION.md
+**/next-env.d.ts
