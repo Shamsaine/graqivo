@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+package-lock.json
+
+.local
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.local
+docs/PRODUCT_SPECIFICATION.md

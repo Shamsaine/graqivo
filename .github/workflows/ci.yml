@@ -1,0 +1,35 @@
+name: Foundation checks
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://graqivo:ci_password@localhost:5432/graqivo
+      FRONTEND_URL: http://localhost:3000
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: graqivo
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: graqivo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U graqivo"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run test:database -w @graqivo/api
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run format:check
