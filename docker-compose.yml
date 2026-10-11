@@ -12,17 +12,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-  minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
-    ports: ['127.0.0.1:9010:9000', '127.0.0.1:9011:9001']
-    volumes: [minio-data:/data]
+  storage:
+    image: chrislusf/seaweedfs:4.37
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json -ip=127.0.0.1 -ip.bind=0.0.0.0 -volume.max=32 -master.volumeSizeLimitMB=100
+    ports: ['127.0.0.1:9010:8333']
+    volumes:
+      - storage-data:/data
+      - ./.local/storage/s3.json:/etc/seaweedfs/s3.json:ro
   mailpit:
     image: axllent/mailpit:v1.27.8
     ports: ['127.0.0.1:1025:1025', '127.0.0.1:8025:8025']
 volumes:
   postgres-data:
   minio-data:
+  storage-data:

@@ -24,7 +24,12 @@ export async function createApplication(quiet = false) {
       if (
         !req.headers.origin ||
         !config.origins.includes(req.headers.origin) ||
-        !req.is('application/json')
+        (!req.is('application/json') &&
+          !(
+            req.method === 'POST' &&
+            /^\/workspaces\/[^/]+\/resources\/[^/]+\/file$/.test(req.path) &&
+            req.is('multipart/form-data')
+          ))
       ) {
         res.status(403).json({
           statusCode: 403,
