@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
+import { LoadingState, EmptyState } from './feedback-state';
 import { api, ApiError } from '../lib/api';
 type Person = { id: string; user: { id: string; name: string } };
 type Review = {
@@ -147,7 +148,7 @@ export function ResourceReviews({
           {error}
         </p>
       )}
-      {!history && !error && <p role="status">Loading review history…</p>}
+      {!history && !error && <LoadingState label="Loading review history…" />}
       {pending && (
         <div className="review-request">
           <strong>
@@ -241,7 +242,10 @@ export function ResourceReviews({
             Latest 50 rounds and up to 50 recent comments per round.
           </small>
           {!history.requests.length && !history.comments.length ? (
-            <p>No reviews yet.</p>
+            <EmptyState
+              title="No reviews yet"
+              description="Review requests and decisions will appear here. Members with Review access can leave feedback."
+            />
           ) : (
             <>
               <ol className="review-history">
@@ -349,7 +353,7 @@ export function ReviewList({
           {error}
         </p>
       )}
-      {!result && !error && <p role="status">Loading reviews…</p>}
+      {!result && !error && <LoadingState label="Loading reviews…" />}
       {result && (
         <>
           {result.items.length ? (
@@ -369,7 +373,10 @@ export function ReviewList({
               ))}
             </ol>
           ) : (
-            <p>No review requests match these filters.</p>
+            <EmptyState
+              title="No matching review requests"
+              description="Try another status, or open a resource to request a review."
+            />
           )}
           <div className="registry-pagination">
             <button
@@ -448,7 +455,7 @@ export function ActivityFeed({
           {error}
         </p>
       )}
-      {!result && !error && <p role="status">Loading activity…</p>}
+      {!result && !error && <LoadingState label="Loading activity…" />}
       {result && (
         <>
           {result.items.length ? (
@@ -485,7 +492,10 @@ export function ActivityFeed({
               ))}
             </ol>
           ) : (
-            <p>No activity available.</p>
+            <EmptyState
+              title="A fresh start"
+              description="Activity appears here as authorized projects, resources, and reviews change."
+            />
           )}
           <div className="registry-pagination">
             <button

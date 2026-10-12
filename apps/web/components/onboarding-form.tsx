@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Brand } from './brand';
+import { LoadingState } from './feedback-state';
 import { api, ApiError, type Workspace } from '../lib/api';
 export function OnboardingForm() {
   const [type, setType] = useState('ORGANIZATION');
@@ -41,16 +42,16 @@ export function OnboardingForm() {
     }
   }
   return (
-    <main className="account-page">
+    <main id="main" tabIndex={-1} className="account-page">
       <Brand />
       <section className="account-panel">
         <span className="eyebrow">SET UP YOUR WORKSPACE</span>
         <h1>A place for your work.</h1>
         <p>You’ll become the Owner of this workspace.</p>
         {!ready && !error ? (
-          <p>Checking your account…</p>
+          <LoadingState label="Checking your account…" />
         ) : (
-          <form onSubmit={submit}>
+          <form onSubmit={submit} aria-busy={busy}>
             <label htmlFor="type">Workspace type</label>
             <select
               id="type"

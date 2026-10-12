@@ -1,23 +1,24 @@
-export function Brand() {
+export function BrandMark({ light = false }: { light?: boolean }) {
   return (
-    <a className="brand" href="/" aria-label="Graqivo home">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <defs>
-          <linearGradient id="brand" x2="1" y2="1">
-            <stop stopColor="#6366f1" />
-            <stop offset=".5" stopColor="#8b5cf6" />
-            <stop offset="1" stopColor="#14b8a6" />
-          </linearGradient>
-        </defs>
-        <path
-          fill="url(#brand)"
-          d="M30 3 53 16 43 25 31 18 16 27v17l15 9 15-9v-7H33V25h25v25L31 64 3 48V20Z"
-        />
-        <circle cx="53" cy="28" r="6" fill="#14b8a6" />
-      </svg>
-      <span>
-        graqivo<span className="brand-dot">.</span>
-      </span>
+    <img
+      src={light ? '/brand/mark-white.svg' : '/brand/mark.svg'}
+      width={40}
+      height={40}
+      alt=""
+      aria-hidden="true"
+      className="brand-mark"
+    />
+  );
+}
+export function Brand({ light = false }: { light?: boolean } = {}) {
+  return (
+    <a
+      className={'brand' + (light ? ' brand-light' : '')}
+      href="/"
+      aria-label="Graqivo home"
+    >
+      <BrandMark light={light} />
+      <span>graqivo</span>
     </a>
   );
 }

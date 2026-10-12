@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Brand } from './brand';
+import { Brand, BrandMark } from './brand';
+import { LoadingState, EmptyState } from './feedback-state';
 import { api, ApiError, type CurrentUser, type Membership } from '../lib/api';
 export function WorkspacePicker() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -27,7 +28,7 @@ export function WorkspacePicker() {
     }
   }
   return (
-    <main className="workspace-page">
+    <main id="main" tabIndex={-1} className="workspace-page">
       <header>
         <Brand />
         <button className="plain-button" onClick={signOut}>
@@ -35,13 +36,14 @@ export function WorkspacePicker() {
         </button>
       </header>
       <span className="eyebrow">YOUR WORKSPACES</span>
-      <h1>{user ? 'Welcome, ' + user.name + '.' : 'Opening your account…'}</h1>
+      <h1>{user ? 'Welcome, ' + user.name + '.' : 'Your workspaces'}</h1>
       <p>Choose a workspace. Your membership determines what you can access.</p>
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
+      {!user && !error && <LoadingState label="Opening your account…" />}
       {user && (
         <>
           <div className="workspace-list">
@@ -50,6 +52,9 @@ export function WorkspacePicker() {
                 key={membership.organization.id}
                 href={'/app/' + membership.organization.slug + '/overview'}
               >
+                <span className="workspace-card-icon">
+                  <BrandMark />
+                </span>
                 <div>
                   <strong>{membership.organization.name}</strong>
                   <small>
@@ -64,14 +69,17 @@ export function WorkspacePicker() {
             ))}
           </div>
           {!memberships.length && (
-            <p>
-              You don’t have a workspace yet. Create one, or accept an
-              invitation from your email.
-            </p>
+            <EmptyState
+              title="Your workspace starts here"
+              description="Create a personal space for your own work, start an organization, or accept an invitation from your email."
+              action={{ label: 'Create a workspace', href: '/onboarding' }}
+            />
           )}
-          <a href="/onboarding" className="button">
-            Create a workspace
-          </a>
+          {memberships.length > 0 && (
+            <a href="/onboarding" className="button">
+              Create a workspace
+            </a>
+          )}
         </>
       )}
     </main>

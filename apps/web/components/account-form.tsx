@@ -15,6 +15,15 @@ export function AccountForm({ mode }: { mode: Mode }) {
   const [busy, setBusy] = useState(false);
   const [resetToken, setResetToken] = useState('');
   useEffect(() => {
+    document.title =
+      (
+        {
+          register: 'Create an account',
+          login: 'Sign in',
+          forgot: 'Reset password',
+          reset: 'Choose a password',
+        } as const
+      )[mode] + ' · Graqivo';
     const query = new URLSearchParams(window.location.search);
     if (query.has('error'))
       setError('This email link is invalid or expired. Request a new one.');
@@ -128,7 +137,7 @@ export function AccountForm({ mode }: { mode: Mode }) {
     }
   }
   return (
-    <main className="account-page">
+    <main id="main" tabIndex={-1} className="account-page">
       <Brand />
       <section className="account-panel">
         <span className="eyebrow">YOUR WORK, CONNECTED.</span>
@@ -138,7 +147,7 @@ export function AccountForm({ mode }: { mode: Mode }) {
             ? 'Create your account, verify your email, then set up your workspace.'
             : 'Connect to your Graqivo workspace.'}
         </p>
-        <form onSubmit={submit}>
+        <form onSubmit={submit} aria-busy={busy}>
           {mode === 'register' && (
             <>
               <label htmlFor="name">Your name</label>

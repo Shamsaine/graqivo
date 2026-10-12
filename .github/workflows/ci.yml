@@ -68,6 +68,7 @@ jobs:
       - run: npm run test:phase3
       - run: npm run test:phase4
       - run: npm run test:phase5
+      - run: npm run test:phase6
       - run: npm run test:email -w @graqivo/api
       - run: npm run typecheck
       - run: npm run lint

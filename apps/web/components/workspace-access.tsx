@@ -1,6 +1,12 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Brand } from './brand';
+import {
+  WorkspaceHeader,
+  WorkspaceIdentity,
+  WorkspaceNavigation,
+} from './workspace-chrome';
+import { workspaceStyle } from '../lib/themes';
+import { LoadingState, EmptyState } from './feedback-state';
 import {
   api,
   ApiError,
@@ -49,6 +55,14 @@ export function WorkspaceAccess({
       else setError(failure.message);
     });
   }, [slug, admin]);
+  useEffect(() => {
+    if (workspace)
+      document.title =
+        (admin ? 'Administration' : 'Overview') +
+        ' · ' +
+        (workspace.organization.displayName || workspace.organization.name) +
+        ' · Graqivo';
+  }, [workspace, admin]);
   async function change(path: string, method: string, body?: unknown) {
     setBusy(true);
     setError('');
@@ -73,29 +87,14 @@ export function WorkspaceAccess({
       role: String(data.get('role')),
     });
   }
-  async function signOut() {
-    setBusy(true);
-    try {
-      await api('/api/auth/sign-out', { method: 'POST' });
-      window.location.assign('/login');
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : 'Please try again.',
-      );
-      setBusy(false);
-    }
-  }
   return (
-    <main className="workspace-page">
-      <header>
-        <Brand />
-        <nav>
-          <a href="/workspaces">Switch workspace</a>
-          <button className="plain-button" disabled={busy} onClick={signOut}>
-            Sign out
-          </button>
-        </nav>
-      </header>
+    <main
+      id="main"
+      tabIndex={-1}
+      className="workspace-page core-workspace"
+      style={workspaceStyle(workspace?.organization.theme)}
+    >
+      <WorkspaceHeader onError={setError} disabled={busy} />
       {error && (
         <p role="alert" className="error">
           {error}
@@ -106,34 +105,26 @@ export function WorkspaceAccess({
           {message}
         </p>
       )}
+      {!workspace && !error && (
+        <LoadingState label="Opening workspace access…" />
+      )}
       {workspace && (
         <>
-          <span className="eyebrow">
-            {workspace.organization.workspaceType === 'PERSONAL'
-              ? 'PERSONAL WORKSPACE'
-              : 'ORGANIZATION'}{' '}
-            · {workspace.role}
-          </span>
-          <h1>{workspace.organization.name}</h1>
-          <nav className="workspace-tabs">
-            <a href={'/app/' + slug + '/overview'}>Overview</a>
-            <a href={'/app/' + slug + '/projects'}>Projects</a>
-            <a href={'/app/' + slug + '/people'}>People</a>
-            <a href={'/app/' + slug + '/registry'}>Registry</a>
-            {workspace.role === 'OWNER' && (
-              <a href={'/app/' + slug + '/settings'}>Settings</a>
-            )}
-            {workspace.role !== 'MEMBER' && (
-              <a href={'/app/' + slug + '/admin'}>Administration</a>
-            )}
-          </nav>
+          <WorkspaceIdentity
+            organization={workspace.organization}
+            role={workspace.role}
+          />
+          <WorkspaceNavigation
+            slug={slug}
+            current={admin ? 'admin' : 'overview'}
+            role={workspace.role}
+          />
           {!admin ? (
             <section className="workspace-empty">
               <h2>Your workspace is ready.</h2>
               <p>
-                Your account and membership are verified. Projects, resource
-                registry, and reviews will arrive in the next development
-                phases.
+                Your projects, resources, and reviews are ready to connect. Open
+                the overview to find your next step.
               </p>
               {workspace.organization.workspaceType === 'ORGANIZATION' &&
                 workspace.role !== 'MEMBER' && (
@@ -175,7 +166,12 @@ export function WorkspaceAccess({
               )}
               <section className="admin-section">
                 <h2>Members</h2>
-                <div className="table-scroll">
+                <div
+                  className="table-scroll"
+                  role="region"
+                  aria-label="Workspace access table"
+                  tabIndex={0}
+                >
                   <table>
                     <thead>
                       <tr>
@@ -268,9 +264,17 @@ export function WorkspaceAccess({
               <section className="admin-section">
                 <h2>Invitations</h2>
                 {!invitations.length ? (
-                  <p>No invitations yet.</p>
+                  <EmptyState
+                    title="No invitations yet"
+                    description="Invite someone by email to bring them into this workspace."
+                  />
                 ) : (
-                  <div className="table-scroll">
+                  <div
+                    className="table-scroll"
+                    role="region"
+                    aria-label="Workspace access table"
+                    tabIndex={0}
+                  >
                     <table>
                       <thead>
                         <tr>

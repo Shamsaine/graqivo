@@ -1,14 +1,21 @@
 'use client';
-import { useEffect, useState, type FormEvent, type CSSProperties } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   api,
   apiBase,
   ApiError,
   type Member,
   type Workspace,
+  type Membership,
 } from '../lib/api';
 import { ResourceReviews, ActivityFeed } from './reviews-activity';
-import { Brand } from './brand';
+import {
+  WorkspaceHeader,
+  WorkspaceIdentity,
+  WorkspaceNavigation,
+} from './workspace-chrome';
+import { workspaceStyle } from '../lib/themes';
+import { LoadingState, EmptyState } from './feedback-state';
 type Resource = {
   id: string;
   title: string;
@@ -73,7 +80,7 @@ export function ResourceRegistry({
 }) {
   const [access, setAccess] = useState<{
     organization: Workspace;
-    role: string;
+    role: Membership['role'];
   }>();
   const [data, setData] = useState<Page>();
   const [resource, setResource] = useState<Resource>();
@@ -96,12 +103,16 @@ export function ResourceRegistry({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [restoreResourceFocus, setRestoreResourceFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const base = '/workspaces/' + encodeURIComponent(slug);
   const href = '/app/' + encodeURIComponent(slug);
   async function load() {
-    const current = await api<{ organization: Workspace; role: string }>(base);
+    const current = await api<{
+      organization: Workspace;
+      role: Membership['role'];
+    }>(base);
     setAccess(current);
     const [allProjects, members] = await Promise.all([
       api<{ id: string; name: string }[]>(base + '/projects'),
@@ -158,6 +169,20 @@ export function ResourceRegistry({
         );
     });
   }, [slug, resourceId, projectId, page, JSON.stringify(filters)]);
+  useEffect(() => {
+    if (access)
+      document.title =
+        (resource?.title || 'Registry') +
+        ' · ' +
+        (access.organization.displayName || access.organization.name) +
+        ' · Graqivo';
+  }, [access, resource?.title]);
+  useEffect(() => {
+    if (!busy && restoreResourceFocus) {
+      document.getElementById('add-resource-trigger')?.focus();
+      setRestoreResourceFocus(false);
+    }
+  }, [busy, restoreResourceFocus]);
   async function change(path: string, method: string, body: unknown) {
     setBusy(true);
     setError('');
@@ -217,6 +242,7 @@ export function ResourceRegistry({
       form.reset();
       setMessage('Resource added.');
       setShowCreateForm(false);
+      setRestoreResourceFocus(true);
     } catch (failure) {
       setError(
         (failure instanceof Error ? failure.message : 'Please try again') +
@@ -287,7 +313,7 @@ export function ResourceRegistry({
           {message}
         </p>
       )}
-      {loading && <p role="status">Loading resources…</p>}
+      {loading && <LoadingState label="Loading resources…" />}
       {!resourceId && (
         <>
           <div className="section-heading">
@@ -303,6 +329,7 @@ export function ResourceRegistry({
                   disabled={busy || loading}
                   aria-expanded={showCreateForm}
                   aria-controls="add-resource-form"
+                  id="add-resource-trigger"
                   onClick={() => setShowCreateForm((open) => !open)}
                 >
                   {showCreateForm ? 'Cancel' : 'Add resource'}
@@ -511,7 +538,12 @@ export function ResourceRegistry({
           </form>
           {!loading && data && (
             <>
-              <div className="table-scroll registry-table">
+              <div
+                className="table-scroll registry-table"
+                role="region"
+                aria-label="Resource registry"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
@@ -568,10 +600,18 @@ export function ResourceRegistry({
                 </table>
               </div>
               {!data.items.length && (
-                <div className="core-empty">
-                  <h3>No matching resources.</h3>
-                  <p>Add a resource or adjust your filters.</p>
-                </div>
+                <EmptyState
+                  title="No matching resources"
+                  description="Try adjusting your filters, or connect the first resource to this workspace."
+                  action={
+                    !projectId || writableProjects.includes(projectId)
+                      ? {
+                          label: 'Add resource',
+                          onClick: () => setShowCreateForm(true),
+                        }
+                      : undefined
+                  }
+                />
               )}
               <nav className="registry-pagination" aria-label="Resource pages">
                 <button
@@ -934,47 +974,23 @@ export function ResourceRegistry({
   if (embedded) return <div className="embedded-registry">{content}</div>;
   return (
     <main
+      id="main"
+      tabIndex={-1}
       className="workspace-page core-workspace"
-      style={
-        {
-          '--workspace-accent': (
-            {
-              indigo: '#4338ca',
-              purple: '#6d28d9',
-              teal: '#0f766e',
-              blue: '#1d4ed8',
-              rose: '#be123c',
-            } as Record<string, string>
-          )[
-            (access?.organization as Workspace & { theme?: string })?.theme ??
-              'indigo'
-          ],
-        } as CSSProperties
-      }
+      style={workspaceStyle(access?.organization.theme)}
     >
-      <header>
-        <Brand />
-        <nav>
-          <a href="/workspaces">Switch workspace</a>
-        </nav>
-      </header>
+      <WorkspaceHeader onError={setError} disabled={busy} />
       {access && (
         <>
-          <span className="eyebrow">YOUR WORK, CONNECTED.</span>
-          <h1>{access.organization.name}</h1>
-          <nav className="workspace-tabs">
-            <a href={href + '/overview'}>Overview</a>
-            <a href={href + '/projects'}>Projects</a>
-            <a href={href + '/registry'} aria-current="page">
-              Registry
-            </a>
-            <a href={href + '/people'}>People</a>
-            <a href={href + '/reviews'}>Reviews</a>
-            <a href={href + '/activity'}>Activity</a>
-            {access.role !== 'MEMBER' && (
-              <a href={href + '/admin'}>Administration</a>
-            )}
-          </nav>
+          <WorkspaceIdentity
+            organization={access.organization}
+            role={access.role}
+          />
+          <WorkspaceNavigation
+            slug={slug}
+            current="registry"
+            role={access.role}
+          />
         </>
       )}
       {content}
