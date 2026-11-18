@@ -23,6 +23,8 @@ import { EmailService } from './email/email.service.js';
 import { PermissionsService } from './permissions/permissions.service.js';
 import { WorkspacesService } from './organizations/workspaces.service.js';
 import { WorkspacesController } from './organizations/workspaces.controller.js';
+import { FilingController } from './filing/filing.controller.js';
+import { FilingService } from './filing/filing.service.js';
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }])],
   controllers: [
@@ -33,6 +35,7 @@ import { WorkspacesController } from './organizations/workspaces.controller.js';
     ResourcesController,
     ReviewsController,
     ActivitiesController,
+    FilingController,
   ],
   providers: [
     PrismaService,
@@ -45,6 +48,7 @@ import { WorkspacesController } from './organizations/workspaces.controller.js';
     ResourcesService,
     ReviewsService,
     ActivitiesService,
+    FilingService,
     ResourceUploadGuard,
     StorageService,
     StorageCleanupService,

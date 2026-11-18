@@ -4,7 +4,7 @@ Your work, connected. An independently owned Next.js / NestJS / PostgreSQL appli
 
 ## Current checkpoint
 
-Phase 6 applies Graqivo branding, self-hosted Inter typography, a complete public landing page, shared workspace navigation/themes, responsive layouts, loading/empty states and accessibility refinements. Existing projects, resource permissions and review/activity workflows remain verified. Hosted deployment and final pilot acceptance remain pending.
+Phase 6 applies Graqivo branding, self-hosted Inter typography, a complete public landing page, shared workspace navigation/themes, responsive layouts, loading/empty states and accessibility refinements. The Resource Discovery & Digital Filing milestone now adds searchable metadata, metadata history, organization-scoped hierarchical filing, concurrency-safe reference numbers, and a shared Filing view over the existing Registry resources. Existing projects, resource permissions and review/activity workflows remain verified. Hosted deployment and final pilot acceptance remain pending.
 
 ## Local preview
 
@@ -29,6 +29,8 @@ Requires Node.js 22.12+, npm, and a running Docker engine.
 This checkout already has generated credentials in ignored environment files. Retain those files to access its existing database. Never commit them.
 
 Local ports: web 3000, API 4000, PostgreSQL 55439, SMTP 1025, Mailpit 8025, private S3 storage 9010. Frontend/API origins must match the configured allowlist; localhost and 127.0.0.1 are both allowed in this checkout. Cookie tokens are never stored in browser local storage. Compose volumes persist across `npm run infra:down`.
+
+Filing reference numbers use the first implementation format `CATEGORY/YYYY/NNNN` (for example `FIN/2026/0042`). The category code and issuance year are captured when a resource is filed; the organization-scoped sequence is allocated transactionally and issued numbers are never renumbered when category names change.
 
 ## Verification
 

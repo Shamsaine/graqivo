@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
@@ -84,6 +85,10 @@ model Organization {
   auditEvents AuditEvent[]
   reviewRequests ReviewRequest[]
   reviews Review[]
+  filingCategories FilingCategory[]
+  resourceFilings ResourceFiling[]
+  filingReferenceSequences FilingReferenceSequence[]
+  resourceMetadataHistory ResourceMetadataHistory[]
 }
 model OrganizationMembership {
   id String @id @default(cuid())
@@ -110,6 +115,9 @@ model OrganizationMembership {
   assignedReviews ReviewRequest[] @relation("AssignedReviewer")
   reviews Review[]
   activities Activity[]
+  createdFilingCategories FilingCategory[]
+  filedResources ResourceFiling[] @relation("ResourceFiledBy")
+  metadataChanges ResourceMetadataHistory[]
   @@unique([organizationId, userId])
   @@unique([organizationId, id])
   @@index([userId, status])
@@ -239,6 +247,12 @@ model Resource {
   project Project? @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict)
   title String
   description String?
+  subject String?
+  purpose String?
+  keywords String[] @default([])
+  documentDate DateTime? @db.Date
+  descriptionUpdatedAt DateTime?
+  metadataCompleteness Int @default(20)
   type ResourceType
   source ResourceSource
   externalUrl String?
@@ -262,6 +276,8 @@ model Resource {
   reviewRequests ReviewRequest[]
   reviews Review[]
   activities Activity[]
+  filing ResourceFiling?
+  metadataHistory ResourceMetadataHistory[]
   @@unique([organizationId, id])
   @@index([organizationId, status, updatedAt, id])
   @@index([organizationId, projectId])
@@ -337,6 +353,76 @@ enum ResourcePermission {
   VIEW
   EDIT
   REVIEW
+}
+
+model FilingCategory {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  parentId String?
+  parent FilingCategory? @relation("FilingCategoryTree", fields: [organizationId, parentId], references: [organizationId, id], onDelete: Restrict)
+  children FilingCategory[] @relation("FilingCategoryTree")
+  name String
+  code String
+  description String?
+  sortOrder Int @default(0)
+  createdById String
+  createdBy OrganizationMembership @relation(fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  archivedAt DateTime?
+  resourceFilings ResourceFiling[]
+  @@unique([organizationId, id])
+  @@unique([organizationId, parentId, code])
+  @@index([organizationId, parentId, sortOrder])
+}
+
+model ResourceFiling {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  resourceId String
+  resource Resource @relation(fields: [organizationId, resourceId], references: [organizationId, id], onDelete: Restrict)
+  filingCategoryId String
+  filingCategory FilingCategory @relation(fields: [organizationId, filingCategoryId], references: [organizationId, id], onDelete: Restrict)
+  referenceNumber String
+  recordDate DateTime @db.Date
+  confidentialityLevel String @default("INTERNAL")
+  filedById String
+  filedBy OrganizationMembership @relation("ResourceFiledBy", fields: [organizationId, filedById], references: [organizationId, id], onDelete: Restrict)
+  filedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, resourceId])
+  @@unique([organizationId, referenceNumber])
+  @@unique([organizationId, id])
+  @@index([organizationId, filingCategoryId, recordDate])
+}
+
+model FilingReferenceSequence {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  scopeKey String
+  prefix String
+  year Int
+  nextValue Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, scopeKey, year])
+}
+
+model ResourceMetadataHistory {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  resourceId String
+  resource Resource @relation(fields: [organizationId, resourceId], references: [organizationId, id], onDelete: Restrict)
+  changedById String
+  changedBy OrganizationMembership @relation(fields: [organizationId, changedById], references: [organizationId, id], onDelete: Restrict)
+  previousValues Json
+  newValues Json
+  changedAt DateTime @default(now())
+  @@index([organizationId, resourceId, changedAt])
 }
 
 model ReviewRequest {

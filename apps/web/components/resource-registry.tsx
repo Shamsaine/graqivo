@@ -16,10 +16,16 @@ import {
 } from './workspace-chrome';
 import { workspaceStyle } from '../lib/themes';
 import { LoadingState, EmptyState } from './feedback-state';
+import { ResourceFilingForm } from './resource-filing-form';
 type Resource = {
   id: string;
   title: string;
   description: string | null;
+  subject: string | null;
+  purpose: string | null;
+  keywords: string[];
+  documentDate: string | null;
+  metadataCompleteness: number;
   type: string;
   source: string;
   externalUrl: string | null;
@@ -45,6 +51,12 @@ type Resource = {
     manageAccess: boolean;
     delete: boolean;
   };
+  filing?: {
+    referenceNumber: string;
+    recordDate: string;
+    confidentialityLevel: string;
+    filingCategory: { id: string; name: string; code: string };
+  } | null;
   events?: {
     id: string;
     action: string;
@@ -224,6 +236,13 @@ export function ResourceRegistry({
         body: {
           title: String(values.get('title')),
           description: String(values.get('description') ?? ''),
+          subject: String(values.get('subject') ?? ''),
+          purpose: String(values.get('purpose') ?? ''),
+          keywords: String(values.get('keywords') ?? '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          documentDate: String(values.get('documentDate') ?? '') || null,
           source,
           type: String(values.get('type')),
           projectId: projectId || String(values.get('projectId') ?? '') || null,
@@ -355,6 +374,35 @@ export function ResourceRegistry({
                   <label>
                     Description
                     <textarea name="description" maxLength={4000} rows={3} />
+                    <small>
+                      Describe what the resource contains, what it supports, and
+                      why it matters.
+                    </small>
+                  </label>
+                  <label>
+                    Subject
+                    <input name="subject" maxLength={240} />
+                  </label>
+                  <label>
+                    Purpose
+                    <textarea
+                      name="purpose"
+                      maxLength={1000}
+                      rows={2}
+                      placeholder="What activity or project does it support?"
+                    />
+                  </label>
+                  <label>
+                    Keywords / tags
+                    <input
+                      name="keywords"
+                      maxLength={1000}
+                      placeholder="procurement, budget, 2026"
+                    />
+                  </label>
+                  <label>
+                    Relevant date
+                    <input name="documentDate" type="date" />
                   </label>
                   <div className="form-grid">
                     <label>
@@ -687,6 +735,14 @@ export function ResourceRegistry({
                 <dt>Review state</dt>
                 <dd>{label(resource.reviewState)}</dd>
               </div>
+              <div>
+                <dt>Filing</dt>
+                <dd>
+                  {resource.filing
+                    ? `${resource.filing.filingCategory.name} · ${resource.filing.referenceNumber}`
+                    : 'Unfiled'}
+                </dd>
+              </div>
               {resource.source === 'UPLOAD' && (
                 <div>
                   <dt>Upload</dt>
@@ -706,6 +762,13 @@ export function ResourceRegistry({
                 : 'Downloads require current workspace and resource access. Download links expire shortly after issuance.'}
             </p>
           </section>
+          <ResourceFilingForm
+            slug={slug}
+            resourceId={resource.id}
+            canEdit={resource.permissions.edit}
+            filed={resource.filing ?? undefined}
+            onComplete={() => load().catch(() => {})}
+          />
           {resource.permissions.edit &&
             resource.source === 'UPLOAD' &&
             ['PENDING', 'FAILED'].includes(resource.uploadState) && (
@@ -777,6 +840,39 @@ export function ResourceRegistry({
                     maxLength={4000}
                     rows={3}
                     defaultValue={resource.description ?? ''}
+                  />
+                </label>
+                <label>
+                  Subject
+                  <input
+                    name="subject"
+                    maxLength={240}
+                    defaultValue={resource.subject ?? ''}
+                  />
+                </label>
+                <label>
+                  Purpose
+                  <textarea
+                    name="purpose"
+                    maxLength={1000}
+                    rows={2}
+                    defaultValue={resource.purpose ?? ''}
+                  />
+                </label>
+                <label>
+                  Keywords / tags
+                  <input
+                    name="keywords"
+                    maxLength={1000}
+                    defaultValue={resource.keywords.join(', ')}
+                  />
+                </label>
+                <label>
+                  Relevant date
+                  <input
+                    name="documentDate"
+                    type="date"
+                    defaultValue={resource.documentDate?.slice(0, 10) ?? ''}
                   />
                 </label>
                 <label>
