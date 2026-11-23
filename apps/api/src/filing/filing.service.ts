@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -19,10 +20,11 @@ import type {
 @Injectable()
 export class FilingService {
   constructor(
-    private readonly db: PrismaService,
+    @Inject(PrismaService) private readonly db: PrismaService,
+    @Inject(PermissionsService)
     private readonly permissions: PermissionsService,
-    private readonly projects: ProjectsService,
-    private readonly resources: ResourcesService,
+    @Inject(ProjectsService) private readonly projects: ProjectsService,
+    @Inject(ResourcesService) private readonly resources: ResourcesService,
   ) {}
 
   private async context(

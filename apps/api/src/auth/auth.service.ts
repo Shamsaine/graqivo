@@ -18,6 +18,29 @@ export function createAuth(prisma: PrismaService, email: EmailService) {
       provider: 'postgresql',
       transaction: true,
     }),
+    ...(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
+      ? {
+          account: {
+            accountLinking: {
+              trustedProviders: ['google'],
+              requireLocalEmailVerified: true,
+              allowDifferentEmails: false,
+            },
+          },
+          socialProviders: {
+            google: {
+              clientId: config.GOOGLE_CLIENT_ID,
+              clientSecret: config.GOOGLE_CLIENT_SECRET,
+              redirectURI:
+                config.GOOGLE_CALLBACK_URL ??
+                new URL(
+                  '/api/auth/callback/google',
+                  config.BETTER_AUTH_URL,
+                ).toString(),
+            },
+          },
+        }
+      : {}),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 12,

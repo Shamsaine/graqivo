@@ -1,5 +1,5 @@
+import Image from 'next/image';
 import {
-  ArrowUpRight,
   Layers3,
   Link2,
   Users,
@@ -11,7 +11,8 @@ import {
   UserRound,
   Building2,
 } from 'lucide-react';
-import { Brand, BrandMark } from '../components/brand';
+import { Brand } from '../components/brand';
+import { MarketingNavigation } from '../components/marketing-navigation';
 const pillars = [
   {
     icon: Link2,
@@ -32,19 +33,17 @@ const pillars = [
 export default function Home() {
   return (
     <div className="marketing">
-      <header className="nav">
-        <Brand />
-        <nav aria-label="Main navigation">
-          <a href="#how">How it works</a>
-          <a href="#workspace">The workspace</a>
-          <a href="/login">Sign in</a>
-          <a className="button small" href="/register">
-            Get started <ArrowUpRight size={16} aria-hidden="true" />
-          </a>
-        </nav>
-      </header>
+      <MarketingNavigation currentPage="home" />
       <main id="main" tabIndex={-1}>
-        <section className="hero">
+        <section className="hero hero-with-background">
+          <Image
+            className="hero-background"
+            src="/images/workspace-collaboration.png"
+            alt="Collaborators sharing ideas around a laptop"
+            fill
+            priority
+            sizes="100vw"
+          />
           <div className="hero-copy">
             <span className="eyebrow">
               <span />
@@ -69,62 +68,6 @@ export default function Home() {
             <p className="hero-note">
               For teams working together. And individuals finding their focus.
             </p>
-          </div>
-          <div
-            className="connection-board"
-            role="img"
-            aria-label="Projects, resources, people, and decisions connected in one Graqivo workspace"
-          >
-            <div className="board-grid" aria-hidden="true" />
-            <span className="board-caption">THE BIGGER PICTURE</span>
-            <svg
-              className="connection-lines"
-              viewBox="0 0 440 360"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient id="connection" x2="1" y2="1">
-                  <stop stopColor="#6366f1" />
-                  <stop offset="1" stopColor="#14b8a6" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M100 95Q180 100 220 180T350 265M340 95Q260 105 220 180T95 265"
-                stroke="url(#connection)"
-                strokeWidth="2"
-                fill="none"
-              />
-              <circle
-                cx="220"
-                cy="180"
-                r="75"
-                fill="none"
-                stroke="#94a3b8"
-                strokeOpacity=".15"
-                strokeDasharray="3 7"
-              />
-            </svg>
-            <div className="connection-center" aria-hidden="true">
-              <BrandMark />
-              <span>graqivo</span>
-            </div>
-            <div className="connection-node node-project">
-              <FolderKanban size={19} aria-hidden="true" />
-              <span>Projects</span>
-            </div>
-            <div className="connection-node node-resource">
-              <FileText size={19} aria-hidden="true" />
-              <span>Resources</span>
-            </div>
-            <div className="connection-node node-people">
-              <Users size={19} aria-hidden="true" />
-              <span>People</span>
-            </div>
-            <div className="connection-node node-review">
-              <CheckCheck size={19} aria-hidden="true" />
-              <span>Decisions</span>
-            </div>
-            <p className="board-note">Your tools. One connected context.</p>
           </div>
         </section>
         <section className="fragmentation section">

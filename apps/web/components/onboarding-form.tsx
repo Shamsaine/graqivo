@@ -5,6 +5,7 @@ import { LoadingState } from './feedback-state';
 import { api, ApiError, type Workspace } from '../lib/api';
 export function OnboardingForm() {
   const [type, setType] = useState('ORGANIZATION');
+  const [profileName, setProfileName] = useState('');
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,8 +17,11 @@ export function OnboardingForm() {
         ? 'PERSONAL'
         : 'ORGANIZATION',
     );
-    api('/me')
-      .then(() => setReady(true))
+    api<{ name: string }>('/me')
+      .then((user) => {
+        setProfileName(user.name);
+        setReady(true);
+      })
       .catch((failure) => {
         if (failure instanceof ApiError && failure.status === 401)
           window.location.assign('/login');
@@ -29,6 +33,10 @@ export function OnboardingForm() {
     setBusy(true);
     setError('');
     try {
+      await api('/api/auth/update-user', {
+        method: 'POST',
+        body: { name: profileName.trim() },
+      });
       const workspace = await api<Workspace>('/workspaces', {
         method: 'POST',
         body: { name, slug, workspaceType: type },
@@ -46,12 +54,25 @@ export function OnboardingForm() {
       <Brand />
       <section className="account-panel">
         <span className="eyebrow">SET UP YOUR WORKSPACE</span>
-        <h1>A place for your work.</h1>
-        <p>You’ll become the Owner of this workspace.</p>
+        <h1>Tell us about yourself.</h1>
+        <p>
+          Confirm your name and choose a workspace type. You can complete the
+          rest of your profile later.
+        </p>
         {!ready && !error ? (
           <LoadingState label="Checking your account…" />
         ) : (
           <form onSubmit={submit} aria-busy={busy}>
+            <label htmlFor="profile-name">Your name</label>
+            <input
+              id="profile-name"
+              value={profileName}
+              required
+              minLength={2}
+              maxLength={100}
+              autoComplete="name"
+              onChange={(event) => setProfileName(event.target.value)}
+            />
             <label htmlFor="type">Workspace type</label>
             <select
               id="type"

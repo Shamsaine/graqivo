@@ -33,9 +33,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     auth: this.config.SMTP_USERNAME
       ? { user: this.config.SMTP_USERNAME, pass: this.config.SMTP_PASSWORD }
       : undefined,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
   });
   private timer?: ReturnType<typeof setInterval>;
   private busy = false;
@@ -120,7 +120,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
             where: { id: job.id },
             data: { status: 'SENT', sentAt: new Date(), payload: '' },
           });
-        } catch {
+        } catch (error) {
           await this.prisma.emailOutbox.update({
             where: { id: job.id },
             data: {
@@ -130,9 +130,23 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
               ),
             },
           });
-          console.error(
-            'Email delivery deferred; inspect outbox status and SMTP configuration.',
-          );
+          const details =
+            typeof error === 'object' && error !== null
+              ? (error as {
+                  code?: unknown;
+                  command?: unknown;
+                  responseCode?: unknown;
+                })
+              : {};
+          console.error('Email delivery deferred.', {
+            code: typeof details.code === 'string' ? details.code : 'unknown',
+            command:
+              typeof details.command === 'string' ? details.command : 'unknown',
+            responseCode:
+              typeof details.responseCode === 'number'
+                ? details.responseCode
+                : undefined,
+          });
         }
       }
     } catch {

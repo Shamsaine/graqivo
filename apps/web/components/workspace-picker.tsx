@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Brand, BrandMark } from './brand';
-import { LoadingState, EmptyState } from './feedback-state';
+import { LoadingState } from './feedback-state';
 import { api, ApiError, type CurrentUser, type Membership } from '../lib/api';
 export function WorkspacePicker() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -10,6 +10,10 @@ export function WorkspacePicker() {
   useEffect(() => {
     Promise.all([api<CurrentUser>('/me'), api<Membership[]>('/workspaces')])
       .then(([person, workspaces]) => {
+        if (!workspaces.length) {
+          window.location.replace('/onboarding');
+          return;
+        }
         setUser(person);
         setMemberships(workspaces);
       })
@@ -68,13 +72,6 @@ export function WorkspacePicker() {
               </a>
             ))}
           </div>
-          {!memberships.length && (
-            <EmptyState
-              title="Your workspace starts here"
-              description="Create a personal space for your own work, start an organization, or accept an invitation from your email."
-              action={{ label: 'Create a workspace', href: '/onboarding' }}
-            />
-          )}
           {memberships.length > 0 && (
             <a href="/onboarding" className="button">
               Create a workspace
