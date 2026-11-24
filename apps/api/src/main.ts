@@ -6,10 +6,12 @@ async function bootstrap() {
   await app.listen(Number(process.env.PORT ?? 4000), '0.0.0.0');
 }
 bootstrap().catch((error: unknown) => {
+  const message =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : String(error);
   console.error(
-    error instanceof Error && error.message.startsWith('Invalid configuration:')
-      ? error.message
-      : 'API startup failed. Check configuration and service availability.',
+    `API startup failed: ${message.replace(/:\/\/[^/@\s]+@/g, '://[redacted]@')}`,
   );
   process.exitCode = 1;
 });
