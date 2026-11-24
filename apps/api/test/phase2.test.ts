@@ -140,6 +140,9 @@ describe.sequential(
     });
     afterAll(async () => {
       if (!db) return;
+      await db.activity.deleteMany({
+        where: { organizationId: { in: organizationIds } },
+      });
       await db.auditEvent.deleteMany({
         where: {
           OR: [

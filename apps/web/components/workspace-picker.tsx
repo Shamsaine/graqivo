@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Brand } from './brand';
+import { Brand, BrandMark } from './brand';
+import { LoadingState } from './feedback-state';
 import { api, ApiError, type CurrentUser, type Membership } from '../lib/api';
 export function WorkspacePicker() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -9,6 +10,10 @@ export function WorkspacePicker() {
   useEffect(() => {
     Promise.all([api<CurrentUser>('/me'), api<Membership[]>('/workspaces')])
       .then(([person, workspaces]) => {
+        if (!workspaces.length) {
+          window.location.replace('/onboarding');
+          return;
+        }
         setUser(person);
         setMemberships(workspaces);
       })
@@ -27,7 +32,7 @@ export function WorkspacePicker() {
     }
   }
   return (
-    <main className="workspace-page">
+    <main id="main" tabIndex={-1} className="workspace-page">
       <header>
         <Brand />
         <button className="plain-button" onClick={signOut}>
@@ -35,13 +40,14 @@ export function WorkspacePicker() {
         </button>
       </header>
       <span className="eyebrow">YOUR WORKSPACES</span>
-      <h1>{user ? 'Welcome, ' + user.name + '.' : 'Opening your account…'}</h1>
+      <h1>{user ? 'Welcome, ' + user.name + '.' : 'Your workspaces'}</h1>
       <p>Choose a workspace. Your membership determines what you can access.</p>
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
+      {!user && !error && <LoadingState label="Opening your account…" />}
       {user && (
         <>
           <div className="workspace-list">
@@ -50,6 +56,9 @@ export function WorkspacePicker() {
                 key={membership.organization.id}
                 href={'/app/' + membership.organization.slug + '/overview'}
               >
+                <span className="workspace-card-icon">
+                  <BrandMark />
+                </span>
                 <div>
                   <strong>{membership.organization.name}</strong>
                   <small>
@@ -58,20 +67,20 @@ export function WorkspacePicker() {
                       : 'Organization'}
                   </small>
                 </div>
-                <span className="role">{membership.role}</span>
+                <span
+                  className={`role role-${membership.role.toLowerCase()}`}
+                >
+                  {membership.role}
+                </span>
                 <span aria-hidden="true">→</span>
               </a>
             ))}
           </div>
-          {!memberships.length && (
-            <p>
-              You don’t have a workspace yet. Create one, or accept an
-              invitation from your email.
-            </p>
+          {memberships.length > 0 && (
+            <a href="/onboarding" className="button">
+              Create a workspace
+            </a>
           )}
-          <a href="/onboarding" className="button">
-            Create a workspace
-          </a>
         </>
       )}
     </main>

@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { createApplication } from './create-app.js';
 async function bootstrap() {
   const app = await createApplication();
-  await app.listen(Number(process.env.PORT ?? 4000), '127.0.0.1');
+  await app.listen(Number(process.env.PORT ?? 4000), '0.0.0.0');
 }
 bootstrap().catch((error: unknown) => {
   console.error(

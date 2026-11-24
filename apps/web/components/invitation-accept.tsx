@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Brand } from './brand';
+import { LoadingState } from './feedback-state';
 import { api, ApiError } from '../lib/api';
 export function InvitationAccept() {
   const [token, setToken] = useState('');
@@ -42,7 +43,7 @@ export function InvitationAccept() {
     }
   }
   return (
-    <main className="account-page">
+    <main id="main" tabIndex={-1} className="account-page">
       <Brand />
       <section className="account-panel">
         <h1>Join your workspace.</h1>
@@ -63,7 +64,7 @@ export function InvitationAccept() {
             {busy ? 'Joining…' : 'Accept invitation'}
           </button>
         ) : (
-          <p>Checking your account…</p>
+          <LoadingState label="Checking your account…" />
         )}
         {ready && !token && <p>Open the invitation link from your email.</p>}
         {error && (

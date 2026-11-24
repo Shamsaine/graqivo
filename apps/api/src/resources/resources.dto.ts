@@ -4,6 +4,7 @@ import {
   IsOptional,
   Length,
   IsUrl,
+  IsDateString,
   ValidateIf,
   IsIn,
   IsInt,
@@ -24,6 +25,13 @@ export class CreateResourceDto {
   @IsString()
   @Length(0, 4000)
   description?: string;
+  @IsOptional() @IsString() @Length(0, 240) subject?: string;
+  @IsOptional() @IsString() @Length(0, 1000) purpose?: string;
+  @IsOptional()
+  @IsString({ each: true })
+  @Length(1, 50, { each: true })
+  keywords?: string[];
+  @IsOptional() @IsDateString() documentDate?: string | null;
   @IsEnum(ResourceType) type!: ResourceType;
   @IsEnum(ResourceSource) source!: ResourceSource;
   @IsOptional()
@@ -42,6 +50,13 @@ export class UpdateResourceDto {
   @IsString()
   @Length(0, 4000)
   description?: string;
+  @IsOptional() @IsString() @Length(0, 240) subject?: string;
+  @IsOptional() @IsString() @Length(0, 1000) purpose?: string;
+  @IsOptional()
+  @IsString({ each: true })
+  @Length(1, 50, { each: true })
+  keywords?: string[];
+  @IsOptional() @IsDateString() documentDate?: string | null;
   @ValidateIf((_, v) => v !== undefined)
   @IsEnum(ResourceType)
   type?: ResourceType;

@@ -1,3 +1,4 @@
+import { recordAudit } from '../activities/activity-write.js';
 import {
   BadRequestException,
   ConflictException,
@@ -32,6 +33,13 @@ const include = {
       id: true,
       permission: true,
       membership: { select: { id: true, user: { select: user } } },
+    },
+  },
+  filing: {
+    include: {
+      filingCategory: {
+        select: { id: true, name: true, code: true, parentId: true },
+      },
     },
   },
 } as const;
@@ -219,7 +227,19 @@ export class ResourcesService {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    return { ...(await this.safe(row, member)), events };
+    const metadataHistory = await this.db.resourceMetadataHistory.findMany({
+      where: { organizationId: resource.organizationId, resourceId: id },
+      select: {
+        id: true,
+        previousValues: true,
+        newValues: true,
+        changedAt: true,
+        changedBy: { select: { user: { select: { name: true } } } },
+      },
+      orderBy: { changedAt: 'desc' },
+      take: 50,
+    });
+    return { ...(await this.safe(row, member)), events, metadataHistory };
   }
   url(value: string | undefined) {
     if (!value) throw new BadRequestException('Enter an external URL');
@@ -278,7 +298,7 @@ export class ResourcesService {
         action,
       },
     });
-    await db.auditEvent.create({
+    await recordAudit(db, {
       data: {
         organizationId: resource.organizationId,
         actorId: member.userId,
@@ -325,6 +345,15 @@ export class ResourcesService {
           organizationId: organization.id,
           title: dto.title.trim(),
           description: dto.description,
+          subject: dto.subject?.trim() || null,
+          purpose: dto.purpose?.trim() || null,
+          keywords:
+            dto.keywords
+              ?.map((value) => value.trim().toLowerCase())
+              .filter(Boolean) ?? [],
+          documentDate: dto.documentDate ? new Date(dto.documentDate) : null,
+          descriptionUpdatedAt: dto.description?.trim() ? new Date() : null,
+          metadataCompleteness: this.completeness(dto),
           type: dto.type,
           source: dto.source,
           externalUrl:
@@ -386,11 +415,68 @@ export class ResourcesService {
         throw new BadRequestException(
           'Uploaded file type is determined by its validated content',
         );
+      const changed =
+        (dto.title !== undefined && dto.title.trim() !== resource.title) ||
+        (dto.description !== undefined &&
+          dto.description !== (resource.description ?? '')) ||
+        (dto.externalUrl !== undefined &&
+          this.url(dto.externalUrl) !== resource.externalUrl) ||
+        (dto.type !== undefined && dto.type !== resource.type) ||
+        (dto.projectId !== undefined && dto.projectId !== resource.projectId) ||
+        (dto.ownerMembershipId !== undefined &&
+          dto.ownerMembershipId !== resource.ownerMembershipId) ||
+        (dto.status === 'ARCHIVED' && resource.status !== 'ARCHIVED');
+      const metadataChanged =
+        dto.title !== undefined ||
+        dto.description !== undefined ||
+        dto.subject !== undefined ||
+        dto.purpose !== undefined ||
+        dto.keywords !== undefined ||
+        dto.documentDate !== undefined ||
+        dto.type !== undefined;
+      if (changed) {
+        await db.reviewRequest.updateMany({
+          where: { resourceId: id, status: 'PENDING' },
+          data: { status: 'CANCELLED', completedAt: new Date() },
+        });
+        if (resource.reviewState !== 'NO_REVIEW')
+          await this.event(db, resource, member, 'REVIEW_INVALIDATED');
+      }
       const updated = await db.resource.update({
         where: { id },
         data: {
-          ...dto,
+          ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+          ...(dto.description !== undefined
+            ? { description: dto.description }
+            : {}),
+          ...(dto.subject !== undefined
+            ? { subject: dto.subject.trim() || null }
+            : {}),
+          ...(dto.purpose !== undefined
+            ? { purpose: dto.purpose.trim() || null }
+            : {}),
+          ...(dto.keywords !== undefined
+            ? {
+                keywords: dto.keywords
+                  .map((value) => value.trim().toLowerCase())
+                  .filter(Boolean),
+              }
+            : {}),
+          ...(dto.documentDate !== undefined
+            ? {
+                documentDate: dto.documentDate
+                  ? new Date(dto.documentDate)
+                  : null,
+              }
+            : {}),
+          ...(dto.type !== undefined ? { type: dto.type } : {}),
+          ...(dto.projectId !== undefined ? { projectId: dto.projectId } : {}),
+          ...(dto.ownerMembershipId !== undefined
+            ? { ownerMembershipId: dto.ownerMembershipId }
+            : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
           title: dto.title?.trim(),
+          ...(changed ? { reviewState: 'NO_REVIEW' as const } : {}),
           externalUrl:
             dto.externalUrl === undefined
               ? undefined
@@ -401,8 +487,34 @@ export class ResourcesService {
               : dto.status === 'ARCHIVED'
                 ? new Date()
                 : null,
+          ...(dto.description !== undefined
+            ? { descriptionUpdatedAt: new Date() }
+            : {}),
+          ...(metadataChanged
+            ? {
+                metadataCompleteness: this.completeness({
+                  title: dto.title ?? resource.title,
+                  description:
+                    dto.description ?? resource.description ?? undefined,
+                  subject: dto.subject ?? resource.subject ?? undefined,
+                  purpose: dto.purpose ?? resource.purpose ?? undefined,
+                  keywords: dto.keywords ?? resource.keywords,
+                }),
+              }
+            : {}),
         },
       });
+      if (metadataChanged) {
+        await db.resourceMetadataHistory.create({
+          data: {
+            organizationId: resource.organizationId,
+            resourceId: resource.id,
+            changedById: member.id,
+            previousValues: this.metadataSnapshot(resource),
+            newValues: this.metadataSnapshot(updated),
+          },
+        });
+      }
       await this.event(
         db,
         updated,
@@ -411,6 +523,41 @@ export class ResourcesService {
       );
       return this.safe(updated, member, db);
     });
+  }
+  private completeness(values: {
+    title?: string;
+    description?: string | null;
+    subject?: string | null;
+    purpose?: string | null;
+    keywords?: string[];
+  }) {
+    return Math.min(
+      100,
+      (values.title?.trim() ? 25 : 0) +
+        (values.description?.trim() ? 30 : 0) +
+        (values.subject?.trim() ? 15 : 0) +
+        (values.purpose?.trim() ? 15 : 0) +
+        (values.keywords?.length ? 15 : 0),
+    );
+  }
+  private metadataSnapshot(resource: {
+    title: string;
+    description: string | null;
+    subject?: string | null;
+    purpose?: string | null;
+    keywords?: string[];
+    documentDate?: Date | null;
+    type: string;
+  }) {
+    return {
+      title: resource.title,
+      description: resource.description,
+      subject: resource.subject ?? null,
+      purpose: resource.purpose ?? null,
+      keywords: resource.keywords ?? [],
+      documentDate: resource.documentDate?.toISOString() ?? null,
+      type: resource.type,
+    };
   }
   async grant(
     slug: string,
@@ -598,6 +745,10 @@ export class ResourcesService {
       await this.permissions.lockWorkspace(db, organization.id);
       const { resource, member } = await this.find(slug, id, userId, db);
       this.permissions.requireManager(member.role);
+      await db.reviewRequest.updateMany({
+        where: { resourceId: id, status: 'PENDING' },
+        data: { status: 'CANCELLED', completedAt: new Date() },
+      });
       if (resource.uploadState === 'UPLOADING')
         throw new ConflictException('Wait for the upload to finish');
       await db.resource.update({

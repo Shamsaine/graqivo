@@ -20,6 +20,26 @@ export function parseAuthEnvironment(input: Record<string, unknown>) {
       SMTP_PASSWORD: z.string().optional(),
       EMAIL_FROM_ADDRESS: z.string().email(),
       EMAIL_FROM_NAME: z.string().default('Graqivo'),
+      GOOGLE_CLIENT_ID: z
+        .string()
+        .optional()
+        .transform((value) => value?.trim() || undefined),
+      GOOGLE_CLIENT_SECRET: z
+        .string()
+        .optional()
+        .transform((value) => value?.trim() || undefined),
+      GOOGLE_CALLBACK_URL: z.string().url().optional(),
+    })
+    .superRefine((config, context) => {
+      if (
+        Boolean(config.GOOGLE_CLIENT_ID) !==
+        Boolean(config.GOOGLE_CLIENT_SECRET)
+      )
+        context.addIssue({
+          code: 'custom',
+          message: 'Google OAuth requires both client ID and client secret',
+          path: ['GOOGLE_CLIENT_ID'],
+        });
     })
     .safeParse(input);
   if (!parsed.success)

@@ -1,3 +1,7 @@
+import { ReviewsService } from './reviews/reviews.service.js';
+import { ReviewsController } from './reviews/reviews.controller.js';
+import { ActivitiesService } from './activities/activities.service.js';
+import { ActivitiesController } from './activities/activities.controller.js';
 import { ProjectsService } from './projects/projects.service.js';
 import { ProjectsController } from './projects/projects.controller.js';
 import { ResourcesService } from './resources/resources.service.js';
@@ -19,6 +23,8 @@ import { EmailService } from './email/email.service.js';
 import { PermissionsService } from './permissions/permissions.service.js';
 import { WorkspacesService } from './organizations/workspaces.service.js';
 import { WorkspacesController } from './organizations/workspaces.controller.js';
+import { FilingController } from './filing/filing.controller.js';
+import { FilingService } from './filing/filing.service.js';
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }])],
   controllers: [
@@ -27,6 +33,9 @@ import { WorkspacesController } from './organizations/workspaces.controller.js';
     WorkspacesController,
     ProjectsController,
     ResourcesController,
+    ReviewsController,
+    ActivitiesController,
+    FilingController,
   ],
   providers: [
     PrismaService,
@@ -37,6 +46,9 @@ import { WorkspacesController } from './organizations/workspaces.controller.js';
     WorkspacesService,
     ProjectsService,
     ResourcesService,
+    ReviewsService,
+    ActivitiesService,
+    FilingService,
     ResourceUploadGuard,
     StorageService,
     StorageCleanupService,

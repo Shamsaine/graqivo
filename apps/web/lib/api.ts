@@ -50,6 +50,10 @@ export interface Workspace {
   slug: string;
   name: string;
   workspaceType: 'ORGANIZATION' | 'PERSONAL';
+  theme?: string;
+  displayName?: string | null;
+  logoUrl?: string | null;
+  logoIsUploaded?: boolean;
 }
 export interface Membership {
   organization: Workspace;

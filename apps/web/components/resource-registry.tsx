@@ -1,17 +1,32 @@
 'use client';
-import { useEffect, useState, type FormEvent, type CSSProperties } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   api,
   apiBase,
   ApiError,
   type Member,
   type Workspace,
+  type Membership,
 } from '../lib/api';
-import { Brand } from './brand';
+import { ResourceReviews, ActivityFeed } from './reviews-activity';
+import {
+  WorkspaceHeader,
+  WorkspaceIdentity,
+  WorkspaceNavigation,
+} from './workspace-chrome';
+import { workspaceStyle } from '../lib/themes';
+import { LoadingState, EmptyState } from './feedback-state';
+import { ResourceFilingForm } from './resource-filing-form';
+import { FilterDisclosure, Modal } from './modal';
 type Resource = {
   id: string;
   title: string;
   description: string | null;
+  subject: string | null;
+  purpose: string | null;
+  keywords: string[];
+  documentDate: string | null;
+  metadataCompleteness: number;
   type: string;
   source: string;
   externalUrl: string | null;
@@ -31,7 +46,18 @@ type Resource = {
     permission: string;
     membership: { id: string; user: { name: string; email: string } };
   }[];
-  permissions: { edit: boolean; manageAccess: boolean; delete: boolean };
+  permissions: {
+    edit: boolean;
+    review: boolean;
+    manageAccess: boolean;
+    delete: boolean;
+  };
+  filing?: {
+    referenceNumber: string;
+    recordDate: string;
+    confidentialityLevel: string;
+    filingCategory: { id: string; name: string; code: string };
+  } | null;
   events?: {
     id: string;
     action: string;
@@ -67,7 +93,7 @@ export function ResourceRegistry({
 }) {
   const [access, setAccess] = useState<{
     organization: Workspace;
-    role: string;
+    role: Membership['role'];
   }>();
   const [data, setData] = useState<Page>();
   const [resource, setResource] = useState<Resource>();
@@ -89,12 +115,20 @@ export function ResourceRegistry({
   }, [search]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [detailDialog, setDetailDialog] = useState<
+    'upload' | 'edit' | 'access' | null
+  >(null);
+  const [restoreResourceFocus, setRestoreResourceFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const base = '/workspaces/' + encodeURIComponent(slug);
   const href = '/app/' + encodeURIComponent(slug);
   async function load() {
-    const current = await api<{ organization: Workspace; role: string }>(base);
+    const current = await api<{
+      organization: Workspace;
+      role: Membership['role'];
+    }>(base);
     setAccess(current);
     const [allProjects, members] = await Promise.all([
       api<{ id: string; name: string }[]>(base + '/projects'),
@@ -151,7 +185,26 @@ export function ResourceRegistry({
         );
     });
   }, [slug, resourceId, projectId, page, JSON.stringify(filters)]);
-  async function change(path: string, method: string, body: unknown) {
+  useEffect(() => {
+    if (access)
+      document.title =
+        (resource?.title || 'Registry') +
+        ' · ' +
+        (access.organization.displayName || access.organization.name) +
+        ' · Graqivo';
+  }, [access, resource?.title]);
+  useEffect(() => {
+    if (!busy && restoreResourceFocus) {
+      document.getElementById('add-resource-trigger')?.focus();
+      setRestoreResourceFocus(false);
+    }
+  }, [busy, restoreResourceFocus]);
+  async function change(
+    path: string,
+    method: string,
+    body: unknown,
+    onSuccess?: () => void,
+  ) {
     setBusy(true);
     setError('');
     setMessage('');
@@ -159,6 +212,7 @@ export function ResourceRegistry({
       await api(path, { method, body });
       await load();
       setMessage('Resource updated.');
+      onSuccess?.();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Please try again');
     } finally {
@@ -192,6 +246,13 @@ export function ResourceRegistry({
         body: {
           title: String(values.get('title')),
           description: String(values.get('description') ?? ''),
+          subject: String(values.get('subject') ?? ''),
+          purpose: String(values.get('purpose') ?? ''),
+          keywords: String(values.get('keywords') ?? '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          documentDate: String(values.get('documentDate') ?? '') || null,
           source,
           type: String(values.get('type')),
           projectId: projectId || String(values.get('projectId') ?? '') || null,
@@ -209,6 +270,8 @@ export function ResourceRegistry({
       await load();
       form.reset();
       setMessage('Resource added.');
+      setShowCreateForm(false);
+      setRestoreResourceFocus(true);
     } catch (failure) {
       setError(
         (failure instanceof Error ? failure.message : 'Please try again') +
@@ -261,7 +324,7 @@ export function ResourceRegistry({
             ownerMembershipId: String(values.get('ownerMembershipId')),
           }
         : {}),
-    });
+    }, () => setDetailDialog(null));
   }
   function filter(key: string, value: string) {
     setPage(1);
@@ -279,7 +342,7 @@ export function ResourceRegistry({
           {message}
         </p>
       )}
-      {loading && <p role="status">Loading resources…</p>}
+      {loading && <LoadingState label="Loading resources…" />}
       {!resourceId && (
         <>
           <div className="section-heading">
@@ -287,8 +350,156 @@ export function ResourceRegistry({
               <h2>{projectId ? 'Project resources' : 'Resource registry'}</h2>
               <p>One organized view of the resources you can access.</p>
             </div>
-            <span>{data?.total ?? '—'} accessible</span>
+            <div className="form-grid">
+              <span>{data?.total ?? '—'} accessible</span>
+              {(!projectId || writableProjects.includes(projectId)) && (
+                <button
+                  className="button"
+                  disabled={busy || loading}
+                  aria-expanded={showCreateForm}
+                  id="add-resource-trigger"
+                  onClick={() => setShowCreateForm(true)}
+                >
+                  Add resource
+                </button>
+              )}
+            </div>
           </div>
+          <Modal
+            open={
+              showCreateForm &&
+              (!projectId || writableProjects.includes(projectId))
+            }
+            title="Add a resource"
+            onClose={() => setShowCreateForm(false)}
+          >
+                {error && (
+                  <p className="error" role="alert">
+                    {error}
+                  </p>
+                )}
+                <form onSubmit={create} className="core-form">
+                  <label>
+                    Title
+                    <input
+                      name="title"
+                      autoFocus
+                      required
+                      minLength={2}
+                      maxLength={180}
+                    />
+                  </label>
+                  <label>
+                    Description
+                    <textarea name="description" maxLength={4000} rows={3} />
+                    <small>
+                      Describe what the resource contains, what it supports, and
+                      why it matters.
+                    </small>
+                  </label>
+                  <label>
+                    Subject
+                    <input name="subject" maxLength={240} />
+                  </label>
+                  <label>
+                    Purpose
+                    <textarea
+                      name="purpose"
+                      maxLength={1000}
+                      rows={2}
+                      placeholder="What activity or project does it support?"
+                    />
+                  </label>
+                  <label>
+                    Keywords / tags
+                    <input
+                      name="keywords"
+                      maxLength={1000}
+                      placeholder="procurement, budget, 2026"
+                    />
+                  </label>
+                  <label>
+                    Relevant date
+                    <input name="documentDate" type="date" />
+                  </label>
+                  <div className="form-grid">
+                    <label>
+                      Source
+                      <select
+                        value={source}
+                        onChange={(event) => setSource(event.target.value)}
+                      >
+                        <option value="EXTERNAL">External link</option>
+                        <option value="UPLOAD">Private upload</option>
+                      </select>
+                    </label>
+                    <label>
+                      Type
+                      <select name="type" defaultValue="LINK">
+                        {categories.map((type) => (
+                          <option key={type} value={type}>
+                            {label(type)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {!projectId && (
+                      <label>
+                        Project
+                        <select name="projectId">
+                          <option value="">Unassigned</option>
+                          {projects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                  {source === 'EXTERNAL' ? (
+                    <label>
+                      External URL
+                      <input
+                        name="externalUrl"
+                        type="url"
+                        required
+                        maxLength={2048}
+                        placeholder="https://"
+                      />
+                      <small>
+                        Graqivo stores this link. The original provider controls
+                        who can open it.
+                      </small>
+                    </label>
+                  ) : (
+                    <label>
+                      File
+                      <input
+                        name="file"
+                        type="file"
+                        required
+                        accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.png,.jpg,.jpeg"
+                      />
+                      <small>
+                        Up to 25 MB. PDF, modern Office files, text, CSV, PNG,
+                        and JPEG. The file type is determined from validated
+                        content.
+                      </small>
+                    </label>
+                  )}
+                  <button className="button" disabled={busy}>
+                    {busy ? 'Adding…' : 'Add resource'}
+                  </button>
+                </form>
+          </Modal>
+          <FilterDisclosure
+            activeCount={
+              Object.entries(filters).filter(
+                ([key, value]) => Boolean(value) && key !== 'search',
+              ).length
+            }
+          >
           <form
             className="registry-filters"
             onSubmit={(event) => event.preventDefault()}
@@ -397,9 +608,15 @@ export function ResourceRegistry({
               </label>
             )}
           </form>
+          </FilterDisclosure>
           {!loading && data && (
             <>
-              <div className="table-scroll registry-table">
+              <div
+                className="table-scroll registry-table"
+                role="region"
+                aria-label="Resource registry"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
@@ -456,10 +673,18 @@ export function ResourceRegistry({
                 </table>
               </div>
               {!data.items.length && (
-                <div className="core-empty">
-                  <h3>No matching resources.</h3>
-                  <p>Add a resource or adjust your filters.</p>
-                </div>
+                <EmptyState
+                  title="No matching resources"
+                  description="Try adjusting your filters, or connect the first resource to this workspace."
+                  action={
+                    !projectId || writableProjects.includes(projectId)
+                      ? {
+                          label: 'Add resource',
+                          onClick: () => setShowCreateForm(true),
+                        }
+                      : undefined
+                  }
+                />
               )}
               <nav className="registry-pagination" aria-label="Resource pages">
                 <button
@@ -479,89 +704,6 @@ export function ResourceRegistry({
                 </button>
               </nav>
             </>
-          )}
-          {(!projectId || writableProjects.includes(projectId)) && (
-            <section className="core-panel">
-              <h3>Add a resource</h3>
-              <form onSubmit={create} className="core-form">
-                <label>
-                  Title
-                  <input name="title" required minLength={2} maxLength={180} />
-                </label>
-                <label>
-                  Description
-                  <textarea name="description" maxLength={4000} rows={3} />
-                </label>
-                <div className="form-grid">
-                  <label>
-                    Source
-                    <select
-                      value={source}
-                      onChange={(event) => setSource(event.target.value)}
-                    >
-                      <option value="EXTERNAL">External link</option>
-                      <option value="UPLOAD">Private upload</option>
-                    </select>
-                  </label>
-                  <label>
-                    Type
-                    <select name="type" defaultValue="LINK">
-                      {categories.map((type) => (
-                        <option key={type} value={type}>
-                          {label(type)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {!projectId && (
-                    <label>
-                      Project
-                      <select name="projectId">
-                        <option value="">Unassigned</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                </div>
-                {source === 'EXTERNAL' ? (
-                  <label>
-                    External URL
-                    <input
-                      name="externalUrl"
-                      type="url"
-                      required
-                      maxLength={2048}
-                      placeholder="https://"
-                    />
-                    <small>
-                      Graqivo stores this link. The original provider controls
-                      who can open it.
-                    </small>
-                  </label>
-                ) : (
-                  <label>
-                    File
-                    <input
-                      name="file"
-                      type="file"
-                      required
-                      accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.png,.jpg,.jpeg"
-                    />
-                    <small>
-                      Up to 25 MB. PDF, modern Office files, text, CSV, PNG, and
-                      JPEG. The file type is determined from validated content.
-                    </small>
-                  </label>
-                )}
-                <button className="button" disabled={busy}>
-                  {busy ? 'Adding…' : 'Add resource'}
-                </button>
-              </form>
-            </section>
           )}
         </>
       )}
@@ -618,6 +760,14 @@ export function ResourceRegistry({
                 <dt>Review state</dt>
                 <dd>{label(resource.reviewState)}</dd>
               </div>
+              <div>
+                <dt>Filing</dt>
+                <dd>
+                  {resource.filing
+                    ? `${resource.filing.filingCategory.name} · ${resource.filing.referenceNumber}`
+                    : 'Unfiled'}
+                </dd>
+              </div>
               {resource.source === 'UPLOAD' && (
                 <div>
                   <dt>Upload</dt>
@@ -637,11 +787,34 @@ export function ResourceRegistry({
                 : 'Downloads require current workspace and resource access. Download links expire shortly after issuance.'}
             </p>
           </section>
+          <ResourceFilingForm
+            slug={slug}
+            resourceId={resource.id}
+            canEdit={resource.permissions.edit}
+            filed={resource.filing ?? undefined}
+            onComplete={() => load().catch(() => {})}
+          />
           {resource.permissions.edit &&
             resource.source === 'UPLOAD' &&
             ['PENDING', 'FAILED'].includes(resource.uploadState) && (
-              <section className="core-panel">
-                <h3>Upload / retry file</h3>
+              <>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setDetailDialog('upload')}
+                >
+                  Upload / retry file
+                </button>
+                <Modal
+                  open={detailDialog === 'upload'}
+                  title="Upload / retry file"
+                  onClose={() => setDetailDialog(null)}
+                >
+                {error && (
+                  <p className="error" role="alert">
+                    {error}
+                  </p>
+                )}
                 <form
                   className="core-form"
                   onSubmit={async (event) => {
@@ -655,6 +828,7 @@ export function ResourceRegistry({
                       await sendFile(resource.id, file);
                       await load();
                       setMessage('File uploaded.');
+                      setDetailDialog(null);
                     } catch (failure) {
                       setError(
                         failure instanceof Error
@@ -677,11 +851,33 @@ export function ResourceRegistry({
                     Upload file
                   </button>
                 </form>
-              </section>
+                </Modal>
+              </>
             )}
           {resource.permissions.edit && (
             <section className="core-panel">
               <h3>Edit metadata</h3>
+              <p>
+                Changing content or assignment cancels any pending review and
+                clears its current decision. Review history is retained.
+              </p>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setDetailDialog('edit')}
+              >
+                Edit resource
+              </button>
+              <Modal
+                open={detailDialog === 'edit'}
+                title="Edit resource metadata"
+                onClose={() => setDetailDialog(null)}
+              >
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
               <form
                 key={resource.updatedAt}
                 onSubmit={edit}
@@ -704,6 +900,39 @@ export function ResourceRegistry({
                     maxLength={4000}
                     rows={3}
                     defaultValue={resource.description ?? ''}
+                  />
+                </label>
+                <label>
+                  Subject
+                  <input
+                    name="subject"
+                    maxLength={240}
+                    defaultValue={resource.subject ?? ''}
+                  />
+                </label>
+                <label>
+                  Purpose
+                  <textarea
+                    name="purpose"
+                    maxLength={1000}
+                    rows={2}
+                    defaultValue={resource.purpose ?? ''}
+                  />
+                </label>
+                <label>
+                  Keywords / tags
+                  <input
+                    name="keywords"
+                    maxLength={1000}
+                    defaultValue={resource.keywords.join(', ')}
+                  />
+                </label>
+                <label>
+                  Relevant date
+                  <input
+                    name="documentDate"
+                    type="date"
+                    defaultValue={resource.documentDate?.slice(0, 10) ?? ''}
                   />
                 </label>
                 <label>
@@ -772,6 +1001,7 @@ export function ResourceRegistry({
                   Save resource
                 </button>
               </form>
+              </Modal>
             </section>
           )}
           <section className="core-panel">
@@ -807,6 +1037,24 @@ export function ResourceRegistry({
               ))}
             </ul>
             {resource.permissions.manageAccess && (
+              <>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setDetailDialog('access')}
+              >
+                Grant access
+              </button>
+              <Modal
+                open={detailDialog === 'access'}
+                title="Grant resource access"
+                onClose={() => setDetailDialog(null)}
+              >
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
               <form
                 className="invite-form"
                 onSubmit={(event) => {
@@ -819,6 +1067,7 @@ export function ResourceRegistry({
                       membershipId: String(values.get('membershipId')),
                       permission: String(values.get('permission')),
                     },
+                    () => setDetailDialog(null),
                   );
                 }}
               >
@@ -845,33 +1094,20 @@ export function ResourceRegistry({
                   Grant access
                 </button>
               </form>
+              </Modal>
+              </>
             )}
             <small>
-              Review permission is recorded now; review actions arrive in Phase
-              5.
+              Review access allows comments and responses to assigned review
+              requests.
             </small>
           </section>
-          <section className="core-panel">
-            <h3>Resource activity</h3>
-            {resource.events?.length ? (
-              <ol className="activity-list">
-                {resource.events.map((event) => (
-                  <li key={event.id}>
-                    <span className="activity-dot" />
-                    <div>
-                      <strong>
-                        {label(event.action.replace('RESOURCE_', ''))}
-                      </strong>
-                      <p>{event.actor.user.name}</p>
-                      <time>{new Date(event.createdAt).toLocaleString()}</time>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p>No activity yet.</p>
-            )}
-          </section>
+          <ResourceReviews slug={slug} resource={resource} onChange={load} />
+          <ActivityFeed
+            key={resource.updatedAt}
+            slug={slug}
+            resourceId={resource.id}
+          />
           {resource.permissions.delete && (
             <section className="core-panel">
               <h3>Delete resource</h3>
@@ -916,45 +1152,23 @@ export function ResourceRegistry({
   if (embedded) return <div className="embedded-registry">{content}</div>;
   return (
     <main
+      id="main"
+      tabIndex={-1}
       className="workspace-page core-workspace"
-      style={
-        {
-          '--workspace-accent': (
-            {
-              indigo: '#4338ca',
-              purple: '#6d28d9',
-              teal: '#0f766e',
-              blue: '#1d4ed8',
-              rose: '#be123c',
-            } as Record<string, string>
-          )[
-            (access?.organization as Workspace & { theme?: string })?.theme ??
-              'indigo'
-          ],
-        } as CSSProperties
-      }
+      style={workspaceStyle(access?.organization.theme)}
     >
-      <header>
-        <Brand />
-        <nav>
-          <a href="/workspaces">Switch workspace</a>
-        </nav>
-      </header>
+      <WorkspaceHeader onError={setError} disabled={busy} />
       {access && (
         <>
-          <span className="eyebrow">YOUR WORK, CONNECTED.</span>
-          <h1>{access.organization.name}</h1>
-          <nav className="workspace-tabs">
-            <a href={href + '/overview'}>Overview</a>
-            <a href={href + '/projects'}>Projects</a>
-            <a href={href + '/registry'} aria-current="page">
-              Registry
-            </a>
-            <a href={href + '/people'}>People</a>
-            {access.role !== 'MEMBER' && (
-              <a href={href + '/admin'}>Administration</a>
-            )}
-          </nav>
+          <WorkspaceIdentity
+            organization={access.organization}
+            role={access.role}
+          />
+          <WorkspaceNavigation
+            slug={slug}
+            current="registry"
+            role={access.role}
+          />
         </>
       )}
       {content}

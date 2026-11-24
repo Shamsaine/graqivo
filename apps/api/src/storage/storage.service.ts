@@ -119,4 +119,17 @@ export class StorageService {
       { expiresIn: this.config.STORAGE_SIGNED_URL_TTL_SECONDS },
     );
   }
+  async display(key: string, mimeType: string) {
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        ResponseContentType: mimeType,
+        ResponseContentDisposition: 'inline',
+        ResponseCacheControl: 'private, no-store',
+      }),
+      { expiresIn: this.config.STORAGE_SIGNED_URL_TTL_SECONDS },
+    );
+  }
 }

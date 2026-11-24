@@ -109,6 +109,7 @@ describe.sequential('Phase 3 live project and workspace authorization', () => {
   afterAll(async () => {
     if (!db) return;
     const where = { organizationId: { in: orgs } };
+    await db.activity.deleteMany({ where });
     await db.projectEvent.deleteMany({ where });
     await db.projectMembership.deleteMany({ where });
     await db.project.deleteMany({ where });
@@ -307,7 +308,7 @@ describe.sequential('Phase 3 live project and workspace authorization', () => {
     expect(JSON.stringify(overview.body)).not.toContain(hidden.id);
     expect(JSON.stringify(overview.body)).not.toContain(foreignProject.id);
     expect(overview.body.resources).toBe(0);
-    expect(overview.body.pendingReviews).toBeNull();
+    expect(overview.body.pendingReviews).toBe(0);
     const people = await call(
       'get',
       path(a.slug, 'people'),

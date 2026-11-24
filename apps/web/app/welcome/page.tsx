@@ -1,28 +1,31 @@
 import { Brand } from '../../components/brand';
 export default function Welcome() {
   return (
-    <main className="status-page">
+    <main id="main" tabIndex={-1} className="status-page">
       <Brand />
       <span className="eyebrow">DEVELOPMENT CHECKPOINT</span>
-      <h1>Your resources, connected.</h1>
+      <h1>Your work, connected.</h1>
       <p>
-        Phase 4 adds the resource registry, external links, private uploads,
-        resource access grants, and authorized downloads.
+        Phase 6 applies Graqivo’s visual identity, responsive workspace layouts,
+        organization themes, loading and empty states, and accessibility
+        refinements.
       </p>
       <ol>
         <li>Foundation</li>
         <li>Authentication and tenant isolation</li>
         <li>Workspace, projects, and people</li>
-        <li>
-          <strong>Resource registry and private uploads</strong> — current
-          checkpoint
-        </li>
+        <li>Resource registry and private uploads</li>
         <li>Reviews and activity</li>
-        <li>Design refinement</li>
+        <li>
+          <strong>Visual design and branding</strong> — current checkpoint
+        </li>
         <li>Hosted pilot deployment</li>
         <li>Acceptance and security testing</li>
       </ol>
-      <p>Reviews and approvals arrive in Phase 5.</p>
+      <p>
+        Hosted deployment and the complete pilot acceptance workflow remain
+        pending.
+      </p>
       <a className="button" href="/workspaces">
         Open your workspace
       </a>
