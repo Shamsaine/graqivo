@@ -1,9 +1,17 @@
 'use client';
-import { useEffect, useState, type FormEvent, type CSSProperties } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ActivityFeed, ReviewList } from './reviews-activity';
 import { ResourceRegistry } from './resource-registry';
-import { Brand } from './brand';
-import { api, ApiError, type Membership } from '../lib/api';
+import {
+  WorkspaceHeader,
+  WorkspaceIdentity,
+  WorkspaceNavigation,
+} from './workspace-chrome';
+import { workspaceStyle } from '../lib/themes';
+import { ThemePicker } from './theme-picker';
+import { LoadingState, EmptyState } from './feedback-state';
+import { api, apiBase, ApiError, type Membership } from '../lib/api';
+import { Modal } from './modal';
 type Person = { id: string; name: string; email: string; image: string | null };
 type Participant = {
   id: string;
@@ -55,6 +63,7 @@ type Workspace = {
   displayName: string | null;
   description: string | null;
   logoUrl: string | null;
+  logoIsUploaded?: boolean;
   theme: string;
   workspaceType: string;
 };
@@ -77,13 +86,6 @@ type Overview = {
   }[];
 };
 const statuses = ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED'];
-const themes: Record<string, string> = {
-  indigo: '#4338ca',
-  purple: '#6d28d9',
-  teal: '#0f766e',
-  blue: '#1d4ed8',
-  rose: '#be123c',
-};
 function label(value: string) {
   return value
     .toLowerCase()
@@ -125,6 +127,9 @@ export function WorkspaceCore({
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState('overview');
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [showParticipantForm, setShowParticipantForm] = useState(false);
+  const [showSettingsForm, setShowSettingsForm] = useState(false);
+  const [restoreProjectFocus, setRestoreProjectFocus] = useState(false);
   const base = '/workspaces/' + encodeURIComponent(slug);
   const href = '/app/' + encodeURIComponent(slug);
   async function load() {
@@ -163,6 +168,24 @@ export function WorkspaceCore({
         );
     });
   }, [slug, view, projectId]);
+  useEffect(() => {
+    if (access)
+      document.title =
+        (view === 'project' ? project?.name || 'Project' : label(view)) +
+        ' · ' +
+        (access.organization.displayName || access.organization.name) +
+        ' · Graqivo';
+  }, [access, view, project?.name]);
+  useEffect(() => {
+    if (!busy && restoreProjectFocus) {
+      document
+        .getElementById(
+          projectId ? 'edit-project-trigger' : 'create-project-trigger',
+        )
+        ?.focus();
+      setRestoreProjectFocus(false);
+    }
+  }, [busy, restoreProjectFocus, projectId]);
   async function write(
     path: string,
     method: string,
@@ -202,19 +225,65 @@ export function WorkspaceCore({
       () => {
         if (!projectId) form.reset();
         setShowProjectForm(false);
+        setRestoreProjectFocus(true);
       },
     );
   }
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await write(base + '/settings', 'PATCH', {
-      name: String(data.get('name')),
-      displayName: String(data.get('displayName') ?? ''),
-      description: String(data.get('description') ?? ''),
-      theme: String(data.get('theme')),
-      logoUrl: String(data.get('logoUrl') ?? '') || null,
-    });
+    const logoFile = data.get('logoFile');
+    const hasLogoFile = logoFile instanceof File && logoFile.size > 0;
+    const removeLogo = data.get('removeLogo') === 'on';
+    const logoUrl = String(data.get('logoUrl') ?? '').trim();
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      if (hasLogoFile) {
+        const form = new FormData();
+        form.set('file', logoFile);
+        const response = await fetch(apiBase() + base + '/logo', {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok)
+          throw new Error(
+            Array.isArray(result.message)
+              ? result.message.join('. ')
+              : result.message || 'Logo upload failed. Please try again.',
+          );
+      }
+      await api(base + '/settings', {
+        method: 'PATCH',
+        body: {
+          name: String(data.get('name')),
+          displayName: String(data.get('displayName') ?? ''),
+          description: String(data.get('description') ?? ''),
+          theme: String(data.get('theme')),
+          ...(!hasLogoFile
+            ? {
+                ...(logoUrl
+                  ? { logoUrl }
+                  : removeLogo || !access?.organization.logoIsUploaded
+                    ? { logoUrl: null }
+                    : {}),
+              }
+            : {}),
+        },
+      });
+      await load();
+      setMessage('Workspace settings saved.');
+      setShowSettingsForm(false);
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : 'Please try again',
+      );
+    } finally {
+      setBusy(false);
+    }
   }
   function projectForm(item?: Project) {
     return (
@@ -331,14 +400,24 @@ export function WorkspaceCore({
         ))}
       </div>
     ) : (
-      <div className="core-empty">
-        <h3>No projects to show.</h3>
-        <p>
-          {access?.role === 'MEMBER'
-            ? 'Projects appear here when a workspace administrator adds you.'
-            : 'Create a project to bring work and people together.'}
-        </p>
-      </div>
+      <EmptyState
+        title="A place for your next project"
+        description={
+          access?.role === 'MEMBER'
+            ? 'Projects appear here when an administrator adds you as a participant.'
+            : 'Create a project to connect its resources, people, and decisions.'
+        }
+        action={
+          access?.role !== 'MEMBER'
+            ? {
+                label: 'Create project',
+                ...(view === 'projects'
+                  ? { onClick: () => setShowProjectForm(true) }
+                  : { href: href + '/projects' }),
+              }
+            : undefined
+        }
+      />
     );
   }
   function activity(events: Event[]) {
@@ -378,96 +457,29 @@ export function WorkspaceCore({
         ))}
       </ol>
     ) : (
-      <p className="muted">No project activity yet.</p>
+      <p className="muted">No authorized activity yet.</p>
     );
   }
   const manager = access?.role === 'OWNER' || access?.role === 'ADMIN';
   return (
     <main
+      id="main"
+      tabIndex={-1}
       className="workspace-page core-workspace"
-      style={
-        {
-          '--workspace-accent': themes[access?.organization.theme ?? 'indigo'],
-        } as CSSProperties
-      }
+      style={workspaceStyle(access?.organization.theme)}
     >
-      <header>
-        <Brand />
-        <nav>
-          <a href="/workspaces">Switch workspace</a>
-          <button
-            className="plain-button"
-            disabled={busy}
-            onClick={async () => {
-              try {
-                await api('/api/auth/sign-out', { method: 'POST' });
-                window.location.assign('/login');
-              } catch {
-                setError('Sign out failed. Please try again.');
-              }
-            }}
-          >
-            Sign out
-          </button>
-        </nav>
-      </header>
+      <WorkspaceHeader onError={setError} disabled={busy} />
       {access && (
         <>
-          <div className="workspace-identity">
-            {access.organization.logoUrl && (
-              <img
-                src={access.organization.logoUrl}
-                alt=""
-                width={48}
-                height={48}
-                referrerPolicy="no-referrer"
-              />
-            )}
-            <div>
-              <span className="eyebrow">
-                {access.organization.workspaceType === 'PERSONAL'
-                  ? 'PERSONAL WORKSPACE'
-                  : 'ORGANIZATION'}{' '}
-                · {access.role}
-              </span>
-              <h1>
-                {access.organization.displayName || access.organization.name}
-              </h1>
-            </div>
-          </div>
-          <nav className="workspace-tabs" aria-label="Workspace">
-            {(
-              [
-                'overview',
-                'projects',
-                'registry',
-                'people',
-                'reviews',
-                'activity',
-              ] as const
-            ).map((page) => (
-              <a
-                key={page}
-                aria-current={
-                  view === page || (view === 'project' && page === 'projects')
-                    ? 'page'
-                    : undefined
-                }
-                href={href + '/' + page}
-              >
-                {label(page)}
-              </a>
-            ))}
-            {manager && <a href={href + '/admin'}>Administration</a>}
-            {access.role === 'OWNER' && (
-              <a
-                aria-current={view === 'settings' ? 'page' : undefined}
-                href={href + '/settings'}
-              >
-                Settings
-              </a>
-            )}
-          </nav>
+          <WorkspaceIdentity
+            organization={access.organization}
+            role={access.role}
+          />
+          <WorkspaceNavigation
+            slug={slug}
+            current={view === 'project' ? 'projects' : view}
+            role={access.role}
+          />
         </>
       )}
       {error && (
@@ -480,7 +492,7 @@ export function WorkspaceCore({
           {message}
         </p>
       )}
-      {!ready && !error && <p role="status">Loading your workspace…</p>}
+      {!ready && !error && <LoadingState label="Loading your workspace…" />}
       {ready && view === 'overview' && overview && (
         <>
           <div className="section-heading">
@@ -572,21 +584,14 @@ export function WorkspaceCore({
                 <button
                   className="button"
                   disabled={busy}
-                  aria-expanded={showProjectForm}
-                  aria-controls="create-project-form"
-                  onClick={() => setShowProjectForm((open) => !open)}
+                  id="create-project-trigger"
+                  onClick={() => setShowProjectForm(true)}
                 >
-                  {showProjectForm ? 'Cancel' : 'Create project'}
+                  Create project
                 </button>
               )}
             </div>
           </div>
-          {manager && showProjectForm && (
-            <section className="core-panel" id="create-project-form">
-              <h2>Create a project</h2>
-              {projectForm()}
-            </section>
-          )}
           {cards(projects)}
         </>
       )}
@@ -660,19 +665,12 @@ export function WorkspaceCore({
                   <button
                     className="button"
                     disabled={busy}
-                    aria-expanded={showProjectForm}
-                    aria-controls="edit-project-form"
-                    onClick={() => setShowProjectForm((open) => !open)}
+                    id="edit-project-trigger"
+                    onClick={() => setShowProjectForm(true)}
                   >
-                    {showProjectForm ? 'Cancel' : 'Edit project'}
+                    Edit project
                   </button>
-                  {showProjectForm && (
-                    <div id="edit-project-form">
-                      <h3>Edit project</h3>
-                      {projectForm(project)}
-                    </div>
-                  )}
-                </>
+                  </>
               )}
               {!manager && activity((project.events ?? []).slice(0, 5))}
             </section>
@@ -680,7 +678,12 @@ export function WorkspaceCore({
           {tab === 'people' && (
             <section className="core-panel">
               <h3>Project people</h3>
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                role="region"
+                aria-label="Project participants"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
@@ -740,43 +743,64 @@ export function WorkspaceCore({
                 </table>
               </div>
               {manager && project.status !== 'ARCHIVED' && (
-                <form
-                  className="invite-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const data = new FormData(event.currentTarget);
-                    void write(
-                      base + '/projects/' + project.id + '/members',
-                      'POST',
-                      {
-                        membershipId: String(data.get('membershipId')),
-                        role: String(data.get('role')),
-                      },
-                    );
-                  }}
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setShowParticipantForm(true)}
                 >
-                  <label>
-                    Workspace member
-                    <select name="membershipId" required>
-                      <option value="">Choose a person</option>
-                      {people.map((person) => (
-                        <option key={person.id} value={person.id}>
-                          {person.user.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Role
-                    <select name="role">
-                      <option value="CONTRIBUTOR">Contributor</option>
-                      <option value="VIEWER">Viewer</option>
-                    </select>
-                  </label>
-                  <button className="button" disabled={busy}>
-                    Add / update participant
-                  </button>
-                </form>
+                  Add participant
+                </button>
+              )}
+              {manager && project.status !== 'ARCHIVED' && (
+                <Modal
+                  open={showParticipantForm}
+                  title="Add project participant"
+                  onClose={() => setShowParticipantForm(false)}
+                >
+                  {error && (
+                    <p className="error" role="alert">
+                      {error}
+                    </p>
+                  )}
+                  <form
+                    className="invite-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const data = new FormData(event.currentTarget);
+                      void write(
+                        base + '/projects/' + project.id + '/members',
+                        'POST',
+                        {
+                          membershipId: String(data.get('membershipId')),
+                          role: String(data.get('role')),
+                        },
+                        () => setShowParticipantForm(false),
+                      );
+                    }}
+                  >
+                    <label>
+                      Workspace member
+                      <select name="membershipId" required>
+                        <option value="">Choose a person</option>
+                        {people.map((person) => (
+                          <option key={person.id} value={person.id}>
+                            {person.user.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Role
+                      <select name="role">
+                        <option value="CONTRIBUTOR">Contributor</option>
+                        <option value="VIEWER">Viewer</option>
+                      </select>
+                    </label>
+                    <button className="button" disabled={busy}>
+                      Add / update participant
+                    </button>
+                  </form>
+                </Modal>
               )}
             </section>
           )}
@@ -867,6 +891,23 @@ export function WorkspaceCore({
             Update your workspace identity. Its address remains{' '}
             <strong>{slug}</strong>.
           </p>
+          <button
+            type="button"
+            className="button"
+            onClick={() => setShowSettingsForm(true)}
+          >
+            Edit workspace settings
+          </button>
+          <Modal
+            open={showSettingsForm}
+            title="Edit workspace settings"
+            onClose={() => setShowSettingsForm(false)}
+          >
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           <form
             key={JSON.stringify(access.organization)}
             onSubmit={saveSettings}
@@ -900,46 +941,58 @@ export function WorkspaceCore({
               />
             </label>
             <label>
-              Logo URL
+              Logo image file
+              <input
+                type="file"
+                name="logoFile"
+                accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+              />
+              <small>PNG or JPEG, up to 5 MB. Uploading replaces the current logo.</small>
+            </label>
+            <label>
+              Or use a logo URL
               <input
                 type="url"
                 name="logoUrl"
                 placeholder="https://"
                 maxLength={2048}
-                defaultValue={access.organization.logoUrl ?? ''}
+                defaultValue={
+                  access.organization.logoIsUploaded
+                    ? ''
+                    : (access.organization.logoUrl ?? '')
+                }
               />
               <small>
-                Use an HTTPS image URL. File uploads arrive in Phase 4.
+                Use an HTTPS image URL. Uploading a file takes precedence over
+                this URL.
               </small>
             </label>
-            <label>
-              Theme
-              <select name="theme" defaultValue={access.organization.theme}>
-                {Object.keys(themes).map((theme) => (
-                  <option key={theme} value={theme}>
-                    {label(theme)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div
-              className="theme-swatches"
-              aria-label="Available workspace colors"
-            >
-              {Object.entries(themes).map(([name, color]) => (
-                <span
-                  key={name}
-                  title={label(name)}
-                  style={{ background: color }}
-                />
-              ))}
-            </div>
+            {access.organization.logoIsUploaded && (
+              <label className="check-label">
+                <input type="checkbox" name="removeLogo" />
+                Remove the current uploaded logo
+              </label>
+            )}
+            <ThemePicker initial={access.organization.theme} disabled={busy} />
             <button className="button" disabled={busy}>
               Save workspace settings
             </button>
           </form>
+          </Modal>
         </section>
       )}
+      <Modal
+        open={showProjectForm}
+        title={view === 'project' ? 'Edit project' : 'Create a project'}
+        onClose={() => setShowProjectForm(false)}
+      >
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {projectForm(view === 'project' ? project : undefined)}
+      </Modal>
     </main>
   );
 }

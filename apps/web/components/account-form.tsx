@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Brand } from './brand';
 import { api } from '../lib/api';
 type Mode = 'register' | 'login' | 'forgot' | 'reset';
@@ -14,9 +15,26 @@ export function AccountForm({ mode }: { mode: Mode }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [resetToken, setResetToken] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   useEffect(() => {
+    document.title =
+      (
+        {
+          register: 'Create an account',
+          login: 'Sign in',
+          forgot: 'Reset password',
+          reset: 'Choose a password',
+        } as const
+      )[mode] + ' · Graqivo';
     const query = new URLSearchParams(window.location.search);
-    if (query.has('error'))
+    if (query.getAll('error').includes('account_not_linked'))
+      setError(
+        'An account already exists for this Google email. Verify that account’s email address, then try Google again.',
+      );
+    else if (query.get('error') === 'google')
+      setError('Google sign-in could not be completed. Please try again.');
+    else if (query.has('error'))
       setError('This email link is invalid or expired. Request a new one.');
     if (query.get('verified') === '1')
       setMessage('Email verified. Sign in to create or open your workspace.');
@@ -42,6 +60,8 @@ export function AccountForm({ mode }: { mode: Mode }) {
     const password = String(data.get('password') ?? '');
     try {
       if (mode === 'register') {
+        if (password !== String(data.get('confirmPassword') ?? ''))
+          throw new Error('Passwords do not match.');
         const type =
           data.get('workspaceType') === 'PERSONAL'
             ? 'PERSONAL'
@@ -127,8 +147,31 @@ export function AccountForm({ mode }: { mode: Mode }) {
       setBusy(false);
     }
   }
+  async function signInWithGoogle() {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await api<{ url?: string }>('/api/auth/sign-in/social', {
+        method: 'POST',
+        body: {
+          provider: 'google',
+          callbackURL: window.location.origin + '/workspaces',
+          newUserCallbackURL: window.location.origin + '/onboarding?google=1',
+          errorCallbackURL: window.location.origin + '/register?error=google',
+        },
+      });
+      if (!result.url) throw new Error('Google sign-in did not return a URL.');
+      window.location.assign(result.url);
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : 'Please try again.',
+      );
+      setBusy(false);
+    }
+  }
   return (
-    <main className="account-page">
+    <main id="main" tabIndex={-1} className="account-page">
       <Brand />
       <section className="account-panel">
         <span className="eyebrow">YOUR WORK, CONNECTED.</span>
@@ -138,7 +181,7 @@ export function AccountForm({ mode }: { mode: Mode }) {
             ? 'Create your account, verify your email, then set up your workspace.'
             : 'Connect to your Graqivo workspace.'}
         </p>
-        <form onSubmit={submit}>
+        <form onSubmit={submit} aria-busy={busy}>
           {mode === 'register' && (
             <>
               <label htmlFor="name">Your name</label>
@@ -175,18 +218,66 @@ export function AccountForm({ mode }: { mode: Mode }) {
               <label htmlFor="password">
                 {mode === 'reset' ? 'New password' : 'Password'}
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete={
-                  mode === 'login' ? 'current-password' : 'new-password'
-                }
-                required
-                minLength={mode === 'login' ? 1 : 12}
-                maxLength={128}
-              />
+              <div className="password-field">
+                <input
+                  id="password"
+                  name="password"
+                  type={passwordVisible ? 'text' : 'password'}
+                  autoComplete={
+                    mode === 'login' ? 'current-password' : 'new-password'
+                  }
+                  required
+                  minLength={mode === 'login' ? 1 : 12}
+                  maxLength={128}
+                />
+                <button
+                  className="password-visibility"
+                  type="button"
+                  aria-label={
+                    passwordVisible ? 'Hide password' : 'Show password'
+                  }
+                  aria-pressed={passwordVisible}
+                  onClick={() => setPasswordVisible((visible) => !visible)}
+                >
+                  {passwordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {mode !== 'login' && <small>Use at least 12 characters.</small>}
+              {mode === 'register' && (
+                <>
+                  <label htmlFor="confirmPassword">Confirm password</label>
+                  <div className="password-field">
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type={confirmPasswordVisible ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      required
+                      minLength={12}
+                      maxLength={128}
+                    />
+                    <button
+                      className="password-visibility"
+                      type="button"
+                      aria-label={
+                        confirmPasswordVisible
+                          ? 'Hide confirm password'
+                          : 'Show confirm password'
+                      }
+                      aria-pressed={confirmPasswordVisible}
+                      onClick={() =>
+                        setConfirmPasswordVisible((visible) => !visible)
+                      }
+                    >
+                      {confirmPasswordVisible ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
           {error && (
@@ -211,6 +302,24 @@ export function AccountForm({ mode }: { mode: Mode }) {
                     : 'Update password'}
           </button>
         </form>
+        {(mode === 'register' || mode === 'login') && (
+          <>
+            <div className="auth-divider">
+              <span>or</span>
+            </div>
+            <button
+              className="google-button"
+              type="button"
+              disabled={busy}
+              onClick={signInWithGoogle}
+            >
+              <span className="google-mark" aria-hidden="true">
+                G
+              </span>
+              Continue with Google
+            </button>
+          </>
+        )}
         {mode === 'login' && (
           <>
             <a href="/forgot-password">Forgot password?</a>

@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
+import { LoadingState, EmptyState } from './feedback-state';
 import { api, ApiError } from '../lib/api';
+import { FilterDisclosure } from './modal';
+import { Modal } from './modal';
 type Person = { id: string; user: { id: string; name: string } };
 type Review = {
   id: string;
@@ -55,6 +58,9 @@ export function ResourceReviews({
   const [role, setRole] = useState('MEMBER');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reviewDialog, setReviewDialog] = useState<
+    'request' | 'respond' | null
+  >(null);
   async function load() {
     const [next, me, access] = await Promise.all([
       api<History>(base + '/reviews'),
@@ -85,7 +91,12 @@ export function ResourceReviews({
   const writable =
     resource.status === 'ACTIVE' &&
     (resource.source !== 'UPLOAD' || resource.uploadState === 'READY');
-  async function write(path: string, body: unknown, form?: HTMLFormElement) {
+  async function write(
+    path: string,
+    body: unknown,
+    form?: HTMLFormElement,
+    onSuccess?: () => void,
+  ) {
     setBusy(true);
     setError('');
     try {
@@ -93,6 +104,7 @@ export function ResourceReviews({
       form?.reset();
       await onChange();
       await load();
+      onSuccess?.();
     } catch (e) {
       setError(failure(e));
     } finally {
@@ -109,6 +121,7 @@ export function ResourceReviews({
         comment: String(data.get('comment')),
       },
       event.currentTarget,
+      () => setReviewDialog(null),
     );
   }
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -123,6 +136,7 @@ export function ResourceReviews({
         ...(pending ? { requestId: pending.id } : {}),
       },
       event.currentTarget,
+      () => setReviewDialog(null),
     );
   }
   function review(item: Review) {
@@ -147,7 +161,7 @@ export function ResourceReviews({
           {error}
         </p>
       )}
-      {!history && !error && <p role="status">Loading review history…</p>}
+      {!history && !error && <LoadingState label="Loading review history…" />}
       {pending && (
         <div className="review-request">
           <strong>
@@ -177,6 +191,24 @@ export function ResourceReviews({
         </div>
       )}
       {writable && resource.permissions.edit && history && !pending && (
+        <>
+        <button
+          type="button"
+          className="button"
+          onClick={() => setReviewDialog('request')}
+        >
+          Request a review
+        </button>
+        <Modal
+          open={reviewDialog === 'request'}
+          title="Request a review"
+          onClose={() => setReviewDialog(null)}
+        >
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <form className="core-form" onSubmit={request}>
           <h4>Request a review</h4>
           <label>
@@ -202,8 +234,28 @@ export function ResourceReviews({
             missing.
           </small>
         </form>
+        </Modal>
+        </>
       )}
       {writable && resource.permissions.review && history && (
+        <>
+        <button
+          type="button"
+          className="button"
+          onClick={() => setReviewDialog('respond')}
+        >
+          {pending ? 'Respond to review' : 'Add a review comment'}
+        </button>
+        <Modal
+          open={reviewDialog === 'respond'}
+          title={pending ? 'Respond to review' : 'Add a review comment'}
+          onClose={() => setReviewDialog(null)}
+        >
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <form className="core-form" onSubmit={submit}>
           <h4>{pending ? 'Respond to review' : 'Add a review comment'}</h4>
           <label>
@@ -230,6 +282,8 @@ export function ResourceReviews({
             Submit response
           </button>
         </form>
+        </Modal>
+        </>
       )}
       {!writable && (
         <p>Review actions require an active resource with its file ready.</p>
@@ -241,7 +295,10 @@ export function ResourceReviews({
             Latest 50 rounds and up to 50 recent comments per round.
           </small>
           {!history.requests.length && !history.comments.length ? (
-            <p>No reviews yet.</p>
+            <EmptyState
+              title="No reviews yet"
+              description="Review requests and decisions will appear here. Members with Review access can leave feedback."
+            />
           ) : (
             <>
               <ol className="review-history">
@@ -314,6 +371,7 @@ export function ReviewList({
   return (
     <section className="core-panel">
       <h3>Review requests</h3>
+      <FilterDisclosure activeCount={Number(Boolean(status)) + Number(mine)}>
       <div className="registry-filters">
         <label>
           Status
@@ -344,12 +402,13 @@ export function ReviewList({
           Assigned to me
         </label>
       </div>
+      </FilterDisclosure>
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {!result && !error && <p role="status">Loading reviews…</p>}
+      {!result && !error && <LoadingState label="Loading reviews…" />}
       {result && (
         <>
           {result.items.length ? (
@@ -369,7 +428,10 @@ export function ReviewList({
               ))}
             </ol>
           ) : (
-            <p>No review requests match these filters.</p>
+            <EmptyState
+              title="No matching review requests"
+              description="Try another status, or open a resource to request a review."
+            />
           )}
           <div className="registry-pagination">
             <button
@@ -448,7 +510,7 @@ export function ActivityFeed({
           {error}
         </p>
       )}
-      {!result && !error && <p role="status">Loading activity…</p>}
+      {!result && !error && <LoadingState label="Loading activity…" />}
       {result && (
         <>
           {result.items.length ? (
@@ -485,7 +547,10 @@ export function ActivityFeed({
               ))}
             </ol>
           ) : (
-            <p>No activity available.</p>
+            <EmptyState
+              title="A fresh start"
+              description="Activity appears here as authorized projects, resources, and reviews change."
+            />
           )}
           <div className="registry-pagination">
             <button

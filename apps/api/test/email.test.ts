@@ -29,12 +29,25 @@ describe.sequential('Durable email delivery', () => {
     };
     const job = await service.enqueue(db, message);
     ids.push(job.id);
+    await db.emailOutbox.update({
+      where: { id: job.id },
+      data: { availableAt: new Date(0) },
+    });
     expect(job.payload).not.toContain(message.to);
     expect(job.payload).not.toContain('private-test-token');
-    smtp.sendMail.mockRejectedValueOnce(new Error('simulated SMTP outage'));
+    const smtpError = Object.assign(new Error('simulated SMTP outage'), {
+      code: 'ETIMEDOUT',
+      command: 'CONN',
+    });
+    smtp.sendMail.mockRejectedValueOnce(smtpError);
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       await service.drain();
+      expect(log).toHaveBeenCalledWith('Email delivery deferred.', {
+        code: 'ETIMEDOUT',
+        command: 'CONN',
+        responseCode: undefined,
+      });
     } finally {
       log.mockRestore();
     }
