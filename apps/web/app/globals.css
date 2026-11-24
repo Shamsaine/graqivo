@@ -509,11 +509,32 @@ select {
   margin-top: 6px;
 }
 .role {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
   color: #475569;
-  background: #eef2ff;
-  border-radius: 4px;
-  padding: 6px 9px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.role-owner {
+  border-color: #c7d2fe;
+  background: #f5f6ff;
+  color: #4338ca;
+}
+.role-owner::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  content: '';
 }
 .workspace-tabs {
   border-bottom: 1px solid #e2e8f0;
@@ -929,6 +950,156 @@ dd {
   padding: 22px;
   margin: 24px 0;
 }
+.filter-disclosure {
+  margin: 0;
+}
+.filter-disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.filter-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.filter-disclosure > summary::after {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: '';
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.15s ease;
+}
+.filter-disclosure[open] > summary::after {
+  transform: rotate(225deg) translate(-2px, -1px);
+}
+.filter-disclosure > summary:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+.filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11px;
+}
+.filter-disclosure .registry-filters {
+  margin: 12px 0 0;
+}
+.modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 54%);
+  backdrop-filter: blur(3px);
+  animation: modal-fade-in 0.16s ease-out;
+}
+.modal-dialog {
+  width: min(100%, 680px);
+  max-height: min(90vh, 900px);
+  overflow: auto;
+  border: 1px solid rgb(226 232 240 / 90%);
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 28%);
+  animation: modal-rise-in 0.18s ease-out;
+}
+.modal-dialog:focus {
+  outline: none;
+}
+.modal-header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgb(255 255 255 / 96%);
+  backdrop-filter: blur(8px);
+}
+.modal-header h2 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+.modal-close {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  color: #475569;
+  cursor: pointer;
+}
+.modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.modal-content {
+  max-height: calc(90vh - 82px);
+  overflow: auto;
+  padding: 24px;
+}
+.modal-content > .core-form {
+  max-width: none;
+}
+.modal-content > .invite-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+.modal-content > .invite-form label {
+  width: 100%;
+}
+.modal-content .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.filing-category-actions {
+  margin: 12px 0 24px;
+}
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes modal-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 .registry-filters label {
   display: flex;
   flex-direction: column;
@@ -1004,6 +1175,23 @@ dd {
   }
   .registry-pagination {
     flex-wrap: wrap;
+  }
+  .modal-backdrop {
+    padding: 10px;
+  }
+  .modal-dialog {
+    max-height: 94vh;
+    border-radius: 14px;
+  }
+  .modal-header {
+    padding: 16px 18px;
+  }
+  .modal-content {
+    max-height: calc(94vh - 74px);
+    padding: 18px;
+  }
+  .modal-content .form-grid {
+    grid-template-columns: 1fr;
   }
 }
 

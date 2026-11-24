@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
@@ -34,7 +35,9 @@ const pipe = (type: Type<unknown>) =>
 @Controller('workspaces/:slug')
 @UseGuards(SessionGuard)
 export class FilingController {
-  constructor(private readonly service: FilingService) {}
+  constructor(
+    @Inject(FilingService) private readonly service: FilingService,
+  ) {}
 
   @Get('filing/categories')
   categories(@Param('slug') slug: string, @Req() req: AuthenticatedRequest) {

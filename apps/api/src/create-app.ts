@@ -27,7 +27,8 @@ export async function createApplication(quiet = false) {
         (!req.is('application/json') &&
           !(
             req.method === 'POST' &&
-            /^\/workspaces\/[^/]+\/resources\/[^/]+\/file$/.test(req.path) &&
+            (/^\/workspaces\/[^/]+\/resources\/[^/]+\/file$/.test(req.path) ||
+              /^\/workspaces\/[^/]+\/logo$/.test(req.path)) &&
             req.is('multipart/form-data')
           ))
       ) {

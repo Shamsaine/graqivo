@@ -10,6 +10,8 @@ import {
 import { Prisma, ProjectStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { StorageCleanupService } from '../storage/storage-cleanup.service.js';
+import { storedLogoKey } from '../storage/logo-validation.js';
 import type {
   SettingsDto,
   CreateProjectDto,
@@ -37,6 +39,8 @@ export class ProjectsService {
     @Inject(ActivitiesService) private readonly activities: ActivitiesService,
     @Inject(PermissionsService)
     private readonly permissions: PermissionsService,
+    @Inject(StorageCleanupService)
+    private readonly cleanup: StorageCleanupService,
   ) {}
   async access(
     slug: string,
@@ -234,6 +238,13 @@ export class ProjectsService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         },
       });
+      const oldLogoKey = storedLogoKey(organization.logoUrl);
+      if (
+        dto.logoUrl !== undefined &&
+        oldLogoKey &&
+        dto.logoUrl !== organization.logoUrl
+      )
+        await this.cleanup.enqueue(db, oldLogoKey);
       await recordAudit(db, {
         data: {
           organizationId: organization.id,

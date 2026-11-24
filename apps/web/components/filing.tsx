@@ -8,6 +8,7 @@ import {
   WorkspaceNavigation,
 } from './workspace-chrome';
 import { EmptyState, LoadingState } from './feedback-state';
+import { FilterDisclosure, Modal } from './modal';
 
 type Category = {
   id: string;
@@ -55,6 +56,7 @@ export function Filing({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [categoryBusy, setCategoryBusy] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
 
   async function load() {
     const current = await api<{
@@ -109,6 +111,7 @@ export function Filing({ slug }: { slug: string }) {
       });
       event.currentTarget.reset();
       await load();
+      setShowCategoryForm(false);
     } catch (failure) {
       setError(
         failure instanceof Error
@@ -159,51 +162,70 @@ export function Filing({ slug }: { slug: string }) {
           </div>
         </div>
         <section className="core-panel">
-          <form
-            className="registry-filters"
-            onSubmit={(event) => event.preventDefault()}
-          >
-            <label>
-              Search
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Describe the document or information you’re looking for…"
-                maxLength={150}
-              />
-            </label>
-            <label>
-              Filing status
-              <select
-                value={filed}
-                onChange={(event) => setFiled(event.target.value)}
-              >
-                <option value="">Filed and unfiled</option>
-                <option value="true">Filed only</option>
-                <option value="false">Unfiled only</option>
-              </select>
-            </label>
-            <label>
-              Category
-              <select
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
-              >
-                <option value="">All categories</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.code} · {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </form>
+          <FilterDisclosure activeCount={Number(Boolean(filed)) + Number(Boolean(categoryId))}>
+            <form
+              className="registry-filters"
+              onSubmit={(event) => event.preventDefault()}
+            >
+              <label>
+                Search
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Describe the document or information you’re looking for…"
+                  maxLength={150}
+                />
+              </label>
+              <label>
+                Filing status
+                <select
+                  value={filed}
+                  onChange={(event) => setFiled(event.target.value)}
+                >
+                  <option value="">Filed and unfiled</option>
+                  <option value="true">Filed only</option>
+                  <option value="false">Unfiled only</option>
+                </select>
+              </label>
+              <label>
+                Category
+                <select
+                  value={categoryId}
+                  onChange={(event) => setCategoryId(event.target.value)}
+                >
+                  <option value="">All categories</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.code} · {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </form>
+          </FilterDisclosure>
         </section>
         {access.role !== 'MEMBER' && (
-          <details className="core-panel">
-            <summary>Manage filing categories</summary>
-            <form className="core-form" onSubmit={createCategory}>
+          <div className="filing-category-actions">
+            <button
+              className="plain-button"
+              onClick={() => setShowCategoryForm(true)}
+            >
+              Manage filing categories
+            </button>
+          </div>
+        )}
+        <Modal
+          open={showCategoryForm}
+          title="Manage filing categories"
+          onClose={() => setShowCategoryForm(false)}
+        >
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <form className="core-form" onSubmit={createCategory}>
               <label>
                 Category name
                 <input
@@ -231,9 +253,8 @@ export function Filing({ slug }: { slug: string }) {
               <button className="button" disabled={categoryBusy}>
                 {categoryBusy ? 'Creating…' : 'Create category'}
               </button>
-            </form>
-          </details>
-        )}
+          </form>
+        </Modal>
         {loading && <LoadingState label="Searching resources…" />}
         {!loading && !items.length && (
           <EmptyState

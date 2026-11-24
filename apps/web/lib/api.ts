@@ -53,6 +53,7 @@ export interface Workspace {
   theme?: string;
   displayName?: string | null;
   logoUrl?: string | null;
+  logoIsUploaded?: boolean;
 }
 export interface Membership {
   organization: Workspace;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
+import { Modal } from './modal';
 
 type Category = { id: string; name: string; code: string };
 type Filed = {
@@ -28,6 +29,7 @@ export function ResourceFilingForm({
   const [categories, setCategories] = useState<Category[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
   useEffect(() => {
     api<Category[]>(base + '/filing/categories')
       .then(setCategories)
@@ -56,6 +58,7 @@ export function ResourceFilingForm({
         },
       );
       onComplete();
+      setShowForm(false);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Filing failed');
     } finally {
@@ -70,6 +73,7 @@ export function ResourceFilingForm({
         { method: 'DELETE' },
       );
       onComplete();
+      setShowForm(false);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Unfiling failed');
     } finally {
@@ -87,6 +91,19 @@ export function ResourceFilingForm({
       {filed && (
         <p>
           <strong>{filed.referenceNumber}</strong> · {filed.filingCategory.name}
+        </p>
+      )}
+      <button className="button" onClick={() => setShowForm(true)}>
+        {filed ? 'Edit filing details' : 'Add filing details'}
+      </button>
+      <Modal
+        open={showForm}
+        title={filed ? 'Edit filing details' : 'Add filing details'}
+        onClose={() => setShowForm(false)}
+      >
+      {error && (
+        <p className="error" role="alert">
+          {error}
         </p>
       )}
       <form className="core-form" onSubmit={submit}>
@@ -147,6 +164,7 @@ export function ResourceFilingForm({
           )}
         </div>
       </form>
+      </Modal>
     </section>
   );
 }

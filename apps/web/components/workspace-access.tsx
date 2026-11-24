@@ -15,6 +15,7 @@ import {
   type Membership,
   type Workspace,
 } from '../lib/api';
+import { Modal } from './modal';
 export function WorkspaceAccess({
   slug,
   admin = false,
@@ -31,6 +32,7 @@ export function WorkspaceAccess({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
   async function load() {
     const access = await api<{
       organization: Workspace;
@@ -63,7 +65,12 @@ export function WorkspaceAccess({
         (workspace.organization.displayName || workspace.organization.name) +
         ' · Graqivo';
   }, [workspace, admin]);
-  async function change(path: string, method: string, body?: unknown) {
+  async function change(
+    path: string,
+    method: string,
+    body?: unknown,
+    onSuccess?: () => void,
+  ) {
     setBusy(true);
     setError('');
     setMessage('');
@@ -71,6 +78,7 @@ export function WorkspaceAccess({
       await api(path, { method, body });
       await load();
       setMessage('Workspace access updated.');
+      onSuccess?.();
     } catch (failure) {
       setError(
         failure instanceof Error ? failure.message : 'Please try again.',
@@ -82,10 +90,15 @@ export function WorkspaceAccess({
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await change('/workspaces/' + slug + '/invitations', 'POST', {
-      email: String(data.get('email')),
-      role: String(data.get('role')),
-    });
+    await change(
+      '/workspaces/' + slug + '/invitations',
+      'POST',
+      {
+        email: String(data.get('email')),
+        role: String(data.get('role')),
+      },
+      () => setShowInviteForm(false),
+    );
   }
   return (
     <main
@@ -141,6 +154,22 @@ export function WorkspaceAccess({
                   <p>
                     Invitations are sent by email and expire after 72 hours.
                   </p>
+                  <button
+                    className="button"
+                    onClick={() => setShowInviteForm(true)}
+                  >
+                    Invite someone
+                  </button>
+                  <Modal
+                    open={showInviteForm}
+                    title="Invite someone"
+                    onClose={() => setShowInviteForm(false)}
+                  >
+                  {error && (
+                    <p className="error" role="alert">
+                      {error}
+                    </p>
+                  )}
                   <form className="invite-form" onSubmit={invite}>
                     <label>
                       Email
@@ -162,6 +191,7 @@ export function WorkspaceAccess({
                       Send invitation
                     </button>
                   </form>
+                  </Modal>
                 </section>
               )}
               <section className="admin-section">

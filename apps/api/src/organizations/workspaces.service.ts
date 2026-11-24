@@ -8,10 +8,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, OrganizationRole } from '@prisma/client';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { PrismaService } from '../database/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { StorageCleanupService } from '../storage/storage-cleanup.service.js';
+import { StorageService } from '../storage/storage.service.js';
+import type { UploadFile } from '../storage/file-validation.js';
+import {
+  storedLogoKey,
+  validateWorkspaceLogo,
+} from '../storage/logo-validation.js';
 import type { CreateWorkspaceDto, InviteDto } from './workspaces.dto.js';
 @Injectable()
 export class WorkspacesService {
@@ -20,6 +27,9 @@ export class WorkspacesService {
     @Inject(PermissionsService)
     private readonly permissions: PermissionsService,
     @Inject(EmailService) private readonly email: EmailService,
+    @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(StorageCleanupService)
+    private readonly cleanup: StorageCleanupService,
   ) {}
   async list(userId: string) {
     return this.prisma.organizationMembership.findMany({
@@ -73,7 +83,82 @@ export class WorkspacesService {
       organization.id,
       userId,
     );
-    return { organization, role: membership.role };
+    const key = storedLogoKey(organization.logoUrl);
+    if (!key) return { organization, role: membership.role };
+    const extension = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
+    const mimeType =
+      extension === 'png'
+        ? 'image/png'
+        : extension === 'jpg'
+          ? 'image/jpeg'
+          : null;
+    if (!mimeType)
+      throw new Error('Stored workspace logo has an unsupported format');
+    return {
+      organization: {
+        ...organization,
+        logoUrl: await this.storage.display(key, mimeType),
+        logoIsUploaded: true,
+      },
+      role: membership.role,
+    };
+  }
+  async uploadLogo(slug: string, userId: string, file: UploadFile) {
+    const { organization, role } = await this.accessible(slug, userId);
+    if (role !== 'OWNER')
+      throw new ForbiddenException('Only Owners can change workspace settings');
+    const meta = validateWorkspaceLogo(file);
+    const key =
+      'organizations/' +
+      organization.id +
+      '/logos/' +
+      randomUUID() +
+      meta.extension;
+    await this.storage.put(
+      key,
+      file.buffer,
+      meta.mimeType,
+      'workspace-logo' + meta.extension,
+    );
+    try {
+      await this.prisma.$transaction(async (db) => {
+        await this.permissions.lockWorkspace(db, organization.id);
+        const actor = await this.permissions.membership(
+          db,
+          organization.id,
+          userId,
+        );
+        if (actor.role !== 'OWNER')
+          throw new ForbiddenException(
+            'Only Owners can change workspace settings',
+          );
+        const current = await db.organization.findUniqueOrThrow({
+          where: { id: organization.id },
+        });
+        await db.organization.update({
+          where: { id: organization.id },
+          data: { logoUrl: 'storage://' + key },
+        });
+        const oldKey = storedLogoKey(current.logoUrl);
+        if (oldKey && oldKey !== key) await this.cleanup.enqueue(db, oldKey);
+        await recordAudit(db, {
+          data: {
+            organizationId: organization.id,
+            actorId: userId,
+            action: 'WORKSPACE_LOGO_UPDATED',
+            targetId: organization.id,
+          },
+        });
+      });
+    } catch (error) {
+      try {
+        await this.prisma.$transaction((db) => this.cleanup.enqueue(db, key));
+      } catch {
+        console.error('Workspace logo cleanup could not be queued.');
+      }
+      throw error;
+    }
+    return { success: true };
   }
   async members(slug: string, userId: string) {
     const { organization } = await this.accessible(slug, userId);

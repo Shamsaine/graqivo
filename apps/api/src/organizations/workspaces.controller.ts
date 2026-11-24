@@ -9,14 +9,18 @@ import {
   Post,
   Req,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   ValidationPipe,
   type Type,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   SessionGuard,
   type AuthenticatedRequest,
 } from '../auth/session.guard.js';
 import { WorkspacesService } from './workspaces.service.js';
+import type { UploadFile } from '../storage/file-validation.js';
 import {
   AcceptInvitationDto,
   ChangeRoleDto,
@@ -91,6 +95,19 @@ export class WorkspacesController {
     @Body(dtoPipe(ChangeRoleDto)) dto: ChangeRoleDto,
   ) {
     return this.workspaces.changeMember(slug, req.user.id, id, dto.role);
+  }
+  @Post('workspaces/:slug/logo')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+    }),
+  )
+  uploadLogo(
+    @Req() req: AuthenticatedRequest,
+    @Param('slug') slug: string,
+    @UploadedFile() file: UploadFile,
+  ) {
+    return this.workspaces.uploadLogo(slug, req.user.id, file);
   }
   @Delete('workspaces/:slug/members/:membershipId') remove(
     @Req() req: AuthenticatedRequest,

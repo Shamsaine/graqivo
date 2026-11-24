@@ -17,6 +17,7 @@ import {
 import { workspaceStyle } from '../lib/themes';
 import { LoadingState, EmptyState } from './feedback-state';
 import { ResourceFilingForm } from './resource-filing-form';
+import { FilterDisclosure, Modal } from './modal';
 type Resource = {
   id: string;
   title: string;
@@ -115,6 +116,9 @@ export function ResourceRegistry({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [detailDialog, setDetailDialog] = useState<
+    'upload' | 'edit' | 'access' | null
+  >(null);
   const [restoreResourceFocus, setRestoreResourceFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -195,7 +199,12 @@ export function ResourceRegistry({
       setRestoreResourceFocus(false);
     }
   }, [busy, restoreResourceFocus]);
-  async function change(path: string, method: string, body: unknown) {
+  async function change(
+    path: string,
+    method: string,
+    body: unknown,
+    onSuccess?: () => void,
+  ) {
     setBusy(true);
     setError('');
     setMessage('');
@@ -203,6 +212,7 @@ export function ResourceRegistry({
       await api(path, { method, body });
       await load();
       setMessage('Resource updated.');
+      onSuccess?.();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Please try again');
     } finally {
@@ -314,7 +324,7 @@ export function ResourceRegistry({
             ownerMembershipId: String(values.get('ownerMembershipId')),
           }
         : {}),
-    });
+    }, () => setDetailDialog(null));
   }
   function filter(key: string, value: string) {
     setPage(1);
@@ -347,19 +357,27 @@ export function ResourceRegistry({
                   className="button"
                   disabled={busy || loading}
                   aria-expanded={showCreateForm}
-                  aria-controls="add-resource-form"
                   id="add-resource-trigger"
-                  onClick={() => setShowCreateForm((open) => !open)}
+                  onClick={() => setShowCreateForm(true)}
                 >
-                  {showCreateForm ? 'Cancel' : 'Add resource'}
+                  Add resource
                 </button>
               )}
             </div>
           </div>
-          {showCreateForm &&
-            (!projectId || writableProjects.includes(projectId)) && (
-              <section className="core-panel" id="add-resource-form">
-                <h3>Add a resource</h3>
+          <Modal
+            open={
+              showCreateForm &&
+              (!projectId || writableProjects.includes(projectId))
+            }
+            title="Add a resource"
+            onClose={() => setShowCreateForm(false)}
+          >
+                {error && (
+                  <p className="error" role="alert">
+                    {error}
+                  </p>
+                )}
                 <form onSubmit={create} className="core-form">
                   <label>
                     Title
@@ -474,8 +492,14 @@ export function ResourceRegistry({
                     {busy ? 'Adding…' : 'Add resource'}
                   </button>
                 </form>
-              </section>
-            )}
+          </Modal>
+          <FilterDisclosure
+            activeCount={
+              Object.entries(filters).filter(
+                ([key, value]) => Boolean(value) && key !== 'search',
+              ).length
+            }
+          >
           <form
             className="registry-filters"
             onSubmit={(event) => event.preventDefault()}
@@ -584,6 +608,7 @@ export function ResourceRegistry({
               </label>
             )}
           </form>
+          </FilterDisclosure>
           {!loading && data && (
             <>
               <div
@@ -772,8 +797,24 @@ export function ResourceRegistry({
           {resource.permissions.edit &&
             resource.source === 'UPLOAD' &&
             ['PENDING', 'FAILED'].includes(resource.uploadState) && (
-              <section className="core-panel">
-                <h3>Upload / retry file</h3>
+              <>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setDetailDialog('upload')}
+                >
+                  Upload / retry file
+                </button>
+                <Modal
+                  open={detailDialog === 'upload'}
+                  title="Upload / retry file"
+                  onClose={() => setDetailDialog(null)}
+                >
+                {error && (
+                  <p className="error" role="alert">
+                    {error}
+                  </p>
+                )}
                 <form
                   className="core-form"
                   onSubmit={async (event) => {
@@ -787,6 +828,7 @@ export function ResourceRegistry({
                       await sendFile(resource.id, file);
                       await load();
                       setMessage('File uploaded.');
+                      setDetailDialog(null);
                     } catch (failure) {
                       setError(
                         failure instanceof Error
@@ -809,7 +851,8 @@ export function ResourceRegistry({
                     Upload file
                   </button>
                 </form>
-              </section>
+                </Modal>
+              </>
             )}
           {resource.permissions.edit && (
             <section className="core-panel">
@@ -818,6 +861,23 @@ export function ResourceRegistry({
                 Changing content or assignment cancels any pending review and
                 clears its current decision. Review history is retained.
               </p>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setDetailDialog('edit')}
+              >
+                Edit resource
+              </button>
+              <Modal
+                open={detailDialog === 'edit'}
+                title="Edit resource metadata"
+                onClose={() => setDetailDialog(null)}
+              >
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
               <form
                 key={resource.updatedAt}
                 onSubmit={edit}
@@ -941,6 +1001,7 @@ export function ResourceRegistry({
                   Save resource
                 </button>
               </form>
+              </Modal>
             </section>
           )}
           <section className="core-panel">
@@ -976,6 +1037,24 @@ export function ResourceRegistry({
               ))}
             </ul>
             {resource.permissions.manageAccess && (
+              <>
+              <button
+                type="button"
+                className="button"
+                onClick={() => setDetailDialog('access')}
+              >
+                Grant access
+              </button>
+              <Modal
+                open={detailDialog === 'access'}
+                title="Grant resource access"
+                onClose={() => setDetailDialog(null)}
+              >
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
               <form
                 className="invite-form"
                 onSubmit={(event) => {
@@ -988,6 +1067,7 @@ export function ResourceRegistry({
                       membershipId: String(values.get('membershipId')),
                       permission: String(values.get('permission')),
                     },
+                    () => setDetailDialog(null),
                   );
                 }}
               >
@@ -1014,6 +1094,8 @@ export function ResourceRegistry({
                   Grant access
                 </button>
               </form>
+              </Modal>
+              </>
             )}
             <small>
               Review access allows comments and responses to assigned review

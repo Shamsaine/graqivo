@@ -67,7 +67,11 @@ export function WorkspacePicker() {
                       : 'Organization'}
                   </small>
                 </div>
-                <span className="role">{membership.role}</span>
+                <span
+                  className={`role role-${membership.role.toLowerCase()}`}
+                >
+                  {membership.role}
+                </span>
                 <span aria-hidden="true">→</span>
               </a>
             ))}
